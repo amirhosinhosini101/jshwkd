@@ -682,7 +682,13 @@ public class LocaleController {
         localeInfo.builtIn = true;
         languages.add(localeInfo);
         languagesDict.put(localeInfo.shortName, localeInfo);
-
+localeInfo = new LocaleInfo();
+localeInfo.name = "فارسی";
+localeInfo.nameEnglish = "Persian";
+localeInfo.shortName = localeInfo.pluralLangCode = "fa";
+localeInfo.pathToFile = "remote";
+languages.add(localeInfo);
+languagesDict.put(localeInfo.shortName, localeInfo);
         loadOtherLanguages();
         if (remoteLanguages.isEmpty()) {
             AndroidUtilities.runOnUIThread(() -> loadRemoteLanguages(UserConfig.selectedAccount));
@@ -730,7 +736,7 @@ public class LocaleController {
 
         try {
             SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-            String lang = preferences.getString("language", null);
+            String lang = preferences.getString("language", "fa");
             if (lang != null) {
                 currentInfo = getLanguageFromDict(lang);
                 if (currentInfo != null) {
