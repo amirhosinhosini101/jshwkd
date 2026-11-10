@@ -3291,10 +3291,6 @@ languagesDict.put(localeInfo.shortName, localeInfo);
                 req.lang_code = localeInfo.getLangCode();
                 requested[0]++;
                 return ConnectionsManager.getInstance(currentAccount).sendRequest(req, (TLObject response, TLRPC.TL_error error) -> {
-                    final String dbg = response != null
-                            ? ("OK n=" + ((TLRPC.TL_langPackDifference) response).strings.size() + " code=" + ((TLRPC.TL_langPackDifference) response).lang_code)
-                            : ("ERR " + (error != null ? (error.code + " " + error.text) : "null"));
-                    AndroidUtilities.runOnUIThread(() -> android.widget.Toast.makeText(ApplicationLoader.applicationContext, "langpack: " + dbg, android.widget.Toast.LENGTH_LONG).show());
                     if (response != null) {
                         AndroidUtilities.runOnUIThread(() -> {
                             saveRemoteLocaleStrings(localeInfo, (TLRPC.TL_langPackDifference) response, currentAccount, onPartlyDone);
