@@ -80,11 +80,14 @@ import org.telegram.ui.Components.BottomPagesView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RLottieImageView;
+import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.SimpleThemeDescription;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Locale;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -130,31 +133,54 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
 
     private boolean isOnLogout;
 
-    private void forcePersianLanguage() {
-    try {
-        LocaleController.LocaleInfo faInfo = null;
-        for (LocaleController.LocaleInfo info : LocaleController.getInstance().languages) {
-            if (info.shortName.startsWith("fa")) {
-                faInfo = info;
-                break;
-            }
+    // ---------------------------------------------------------------------
+    // Persian (fa) support
+    // ---------------------------------------------------------------------
+    private static final String PERSIAN_CODE = "fa";
+    // true  = intro is always Persian; false = only when the phone/server language is Persian
+    private static final boolean FORCE_PERSIAN_ALWAYS = true;
+    // if the language pack can't be downloaded in this time, show the intro anyway (and refresh later)
+    private static final long PERSIAN_WAIT_TIMEOUT_MS = 8000;
+
+    private LocaleController.LocaleInfo persianInfo;
+    private boolean waitingForLanguage;
+    private boolean rebuildingPages;
+    private ScrollView contentScrollView;
+    private RadialProgressView loadingView;
+    private CharSequence logoTitle;
+    private final Runnable languageTimeoutRunnable = this::onLanguageWaitTimeout;
+
+    private boolean shouldUsePersian() {
+        if (FORCE_PERSIAN_ALWAYS) {
+            return true;
         }
-        if (faInfo != null) {
-            LocaleController.getInstance().applyLanguage(faInfo, true, false, currentAccount);
-        }
-    } catch (Exception e) {
-        FileLog.e(e);
+        Locale sys = LocaleController.getInstance().getSystemDefaultLocale();
+        String lang = sys != null ? sys.getLanguage() : null;
+        String suggested = MessagesController.getInstance(currentAccount).suggestedLangCode;
+        return PERSIAN_CODE.equals(lang) || suggested != null && suggested.toLowerCase().startsWith(PERSIAN_CODE);
     }
-}
 
-    @Override
-public boolean onFragmentCreate() {
-    MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
+    private LocaleController.LocaleInfo getPersianInfo() {
+        return LocaleController.getInstance().getLanguageFromDict(PERSIAN_CODE);
+    }
 
-    forcePersianLanguage();   // 👈 این خط رو اضافه کن
+    private boolean isCurrentLocalePersian() {
+        LocaleController.LocaleInfo cur = LocaleController.getInstance().getCurrentLocaleInfo();
+        return cur != null && PERSIAN_CODE.equals(cur.shortName);
+    }
 
-    titles = new CharSequence[]{
-            null,
+    /** Persian is the active locale AND its language pack file is already on disk. */
+    private boolean isPersianReady() {
+        if (persianInfo == null || !isCurrentLocalePersian()) {
+            return false;
+        }
+        File f = persianInfo.getPathToFile();
+        return f != null && f.exists() && f.length() > 1000;
+    }
+
+    private void reloadTexts() {
+        titles = new CharSequence[]{
+                logoTitle,
                 LocaleController.getString(R.string.Page2Title),
                 LocaleController.getString(R.string.Page3Title),
                 LocaleController.getString(R.string.Page5Title),
@@ -169,7 +195,75 @@ public boolean onFragmentCreate() {
                 LocaleController.getString(R.string.Page4Message),
                 LocaleController.getString(R.string.Page6Message)
         };
+    }
+
+    @Override
+    public boolean onFragmentCreate() {
+        MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
+
+        if (shouldUsePersian()) {
+            persianInfo = getPersianInfo();
+            if (persianInfo != null) {
+                // LocaleController already applies "fa" (and starts the download) on app start.
+                // Applying it again would start a second, racing download, so only do it if needed.
+                if (!isCurrentLocalePersian()) {
+                    LocaleController.getInstance().applyLanguage(persianInfo, true, false, currentAccount);
+                }
+                waitingForLanguage = !isPersianReady();
+            }
+        }
+
+        reloadTexts();
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.reloadInterface);
         return true;
+    }
+
+    private void onLanguageWaitTimeout() {
+        if (destroyed || !waitingForLanguage) {
+            return;
+        }
+        // Offline / slow network: show the intro anyway. When the pack finally arrives,
+        // reloadInterface will refresh the texts automatically.
+        waitingForLanguage = false;
+        showContent(true);
+    }
+
+    private void showContent(boolean animated) {
+        if (contentScrollView == null) {
+            return;
+        }
+        AndroidUtilities.cancelRunOnUIThread(languageTimeoutRunnable);
+        if (loadingView != null) {
+            loadingView.setVisibility(View.GONE);
+        }
+        if (animated) {
+            contentScrollView.animate().alpha(1f).setDuration(200).start();
+        } else {
+            contentScrollView.setAlpha(1f);
+        }
+    }
+
+    private void onLanguageReloaded() {
+        if (destroyed || startPressed) {
+            return;
+        }
+        if (waitingForLanguage && persianInfo != null && !isPersianReady()) {
+            return; // some unrelated reloadInterface, Persian pack is not here yet
+        }
+        reloadTexts();
+        if (viewPager != null && viewPager.getAdapter() != null) {
+            rebuildingPages = true;
+            viewPager.getAdapter().notifyDataSetChanged();
+            rebuildingPages = false;
+        }
+        if (startMessagingButton != null) {
+            startMessagingButton.setText(LocaleController.getString(R.string.StartMessaging));
+        }
+        if (waitingForLanguage) {
+            waitingForLanguage = false;
+            showContent(true);
+        }
+        checkContinueText();
     }
 
         @Override
@@ -179,6 +273,7 @@ public boolean onFragmentCreate() {
         SpannableStringBuilder ssb = new SpannableStringBuilder(" ");
         ssb.setSpan(new ImageSpan(logoDrawable, ImageSpan.ALIGN_CENTER), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         ssb.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        logoTitle = ssb;
         titles[0] = ssb;
 
 
@@ -186,6 +281,7 @@ public boolean onFragmentCreate() {
 
         ScrollView scrollView = new ScrollView(context);
         scrollView.setFillViewport(true);
+        contentScrollView = scrollView;
 
         RLottieImageView themeIconView = new RLottieImageView(context);
         FrameLayout themeFrameLayout = new FrameLayout(context);
@@ -401,7 +497,7 @@ public boolean onFragmentCreate() {
         startMessagingButton.setPadding(dp(34), 0, dp(34), 0);
         frameContainerView.addView(startMessagingButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 16, 0, 16, 76));
         startMessagingButton.setOnClickListener(view -> {
-            if (startPressed) {
+            if (startPressed || waitingForLanguage) {
                 return;
             }
             startPressed = true;
@@ -418,7 +514,7 @@ public boolean onFragmentCreate() {
         switchLanguageTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         frameContainerView.addView(switchLanguageTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 20));
         switchLanguageTextView.setOnClickListener(v -> {
-            if (startPressed || localeInfo == null) {
+            if (startPressed || waitingForLanguage || localeInfo == null) {
                 return;
             }
             startPressed = true;
@@ -446,7 +542,20 @@ public boolean onFragmentCreate() {
 
         frameContainerView.addView(themeFrameLayout, LayoutHelper.createFrame(64, 64, Gravity.TOP | Gravity.RIGHT, 0, themeMargin, themeMargin, 0));
 
-        fragmentView = scrollView;
+        FrameLayout rootView = new FrameLayout(context);
+        rootView.addView(scrollView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        loadingView = new RadialProgressView(context);
+        loadingView.setVisibility(View.GONE);
+        rootView.addView(loadingView, LayoutHelper.createFrame(48, 48, Gravity.CENTER));
+        fragmentView = rootView;
+
+        if (waitingForLanguage) {
+            // keep the (English) content invisible until the Persian pack is ready
+            scrollView.setAlpha(0f);
+            loadingView.setVisibility(View.VISIBLE);
+            AndroidUtilities.cancelRunOnUIThread(languageTimeoutRunnable);
+            AndroidUtilities.runOnUIThread(languageTimeoutRunnable, PERSIAN_WAIT_TIMEOUT_MS);
+        }
 
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.suggestedLangpack);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.configLoaded);
@@ -492,6 +601,8 @@ public boolean onFragmentCreate() {
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
         destroyed = true;
+        AndroidUtilities.cancelRunOnUIThread(languageTimeoutRunnable);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.reloadInterface);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.suggestedLangpack);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.configLoaded);
         MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", 0).apply();
@@ -523,6 +634,12 @@ public boolean onFragmentCreate() {
                 break;
             }
         }
+        if (isCurrentLocalePersian()) {
+            // user already has Persian: no "Continue in English" button
+            localeInfo = null;
+            switchLanguageTextView.setVisibility(View.GONE);
+            return;
+        }
         if (englishInfo == null || systemInfo == null || englishInfo == systemInfo) {
             return;
         }
@@ -545,7 +662,8 @@ public boolean onFragmentCreate() {
                 final TLRPC.LangPackString string = (TLRPC.LangPackString) vector.objects.get(0);
                 if (string instanceof TLRPC.TL_langPackString) {
                     AndroidUtilities.runOnUIThread(() -> {
-                        if (!destroyed) {
+                        if (!destroyed && !isCurrentLocalePersian()) {
+                            switchLanguageTextView.setVisibility(View.VISIBLE);
                             switchLanguageTextView.setText(string.value);
                             SharedPreferences preferences = MessagesController.getGlobalMainSettings();
                             preferences.edit().putString("language_showed2", finalSystemLang.toLowerCase()).apply();
@@ -558,7 +676,9 @@ public boolean onFragmentCreate() {
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (id == NotificationCenter.suggestedLangpack || id == NotificationCenter.configLoaded) {
+        if (id == NotificationCenter.reloadInterface) {
+            onLanguageReloaded();
+        } else if (id == NotificationCenter.suggestedLangpack || id == NotificationCenter.configLoaded) {
             checkContinueText();
         }
     }
@@ -582,6 +702,11 @@ public boolean onFragmentCreate() {
         @Override
         public int getCount() {
             return titles.length;
+        }
+
+        @Override
+        public int getItemPosition(@NonNull Object object) {
+            return rebuildingPages ? POSITION_NONE : POSITION_UNCHANGED;
         }
 
         @NonNull
