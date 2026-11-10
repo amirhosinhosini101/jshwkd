@@ -754,7 +754,8 @@ languagesDict.put(localeInfo.shortName, localeInfo);
                 }
             }
 
-            applyLanguage(currentInfo, override, true, UserConfig.selectedAccount);
+                        applyLanguage(currentInfo, override, true, UserConfig.selectedAccount);
+            AndroidUtilities.runOnUIThread(() -> ensureRemoteLocale(0, UserConfig.selectedAccount), 3000);
         } catch (Exception e) {
             FileLog.e(e);
         }
@@ -1293,6 +1294,19 @@ languagesDict.put(localeInfo.shortName, localeInfo);
             }
         }
         return new HashMap<>();
+    }
+
+         private void ensureRemoteLocale(int attempt, int account) {
+        LocaleInfo info = currentLocaleInfo;
+        if (info == null || !info.isRemote() || attempt > 10) {
+            return;
+        }
+        File f = info.getPathToFile();
+        if (f != null && f.exists() && f.length() > 1000) {
+            return;
+        }
+        reloadCurrentRemoteLocale(account, null, true, null);
+        AndroidUtilities.runOnUIThread(() -> ensureRemoteLocale(attempt + 1, account), 4000);
     }
 
     public int applyLanguage(LocaleInfo localeInfo, boolean override, boolean init, final int currentAccount) {
