@@ -130,12 +130,31 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
 
     private boolean isOnLogout;
 
-    @Override
-    public boolean onFragmentCreate() {
-        MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
+    private void forcePersianLanguage() {
+    try {
+        LocaleController.LocaleInfo faInfo = null;
+        for (LocaleController.LocaleInfo info : LocaleController.getInstance().languages) {
+            if (info.shortName.startsWith("fa")) {
+                faInfo = info;
+                break;
+            }
+        }
+        if (faInfo != null) {
+            LocaleController.getInstance().applyLanguage(faInfo, true, false, currentAccount);
+        }
+    } catch (Exception e) {
+        FileLog.e(e);
+    }
+}
 
-        titles = new CharSequence[]{
-                null,
+    @Override
+public boolean onFragmentCreate() {
+    MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
+
+    forcePersianLanguage();   // 👈 این خط رو اضافه کن
+
+    titles = new CharSequence[]{
+            null,
                 LocaleController.getString(R.string.Page2Title),
                 LocaleController.getString(R.string.Page3Title),
                 LocaleController.getString(R.string.Page5Title),
