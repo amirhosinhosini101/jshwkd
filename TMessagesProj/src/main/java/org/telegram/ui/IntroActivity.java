@@ -180,7 +180,7 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
         return f != null && f.exists() && f.length() > 1000;
     }
 
-    private static final int BUNDLED_FA_VERSION = 1; // bump this whenever you change assets/fa.xml
+    private static final int BUNDLED_FA_VERSION = 3; // bump this whenever you change assets/fa.xml
 
     /** Copies assets/fa.xml to the place LocaleController looks for it. Returns true if copied. */
     private boolean installBundledPersian() {
