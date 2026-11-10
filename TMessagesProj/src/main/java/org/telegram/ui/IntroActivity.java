@@ -86,6 +86,8 @@ import org.telegram.ui.Components.SimpleThemeDescription;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -178,6 +180,42 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
         return f != null && f.exists() && f.length() > 1000;
     }
 
+    private static final int BUNDLED_FA_VERSION = 1; // bump this whenever you change assets/fa.xml
+
+    /** Copies assets/fa.xml to the place LocaleController looks for it. Returns true if copied. */
+    private boolean installBundledPersian() {
+        try {
+            File dest = persianInfo.getPathToFile();
+            if (dest == null) {
+                return false;
+            }
+            SharedPreferences prefs = MessagesController.getGlobalMainSettings();
+            if (dest.exists() && dest.length() > 1000
+                    && prefs.getInt("bundled_fa_version", 0) == BUNDLED_FA_VERSION) {
+                return false;
+            }
+            File tmp = new File(dest.getParentFile(), "fa_tmp.xml");
+            try (InputStream in = ApplicationLoader.applicationContext.getAssets().open("fa.xml");
+                 FileOutputStream out = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                }
+            }
+            if (dest.exists()) {
+                dest.delete();
+            }
+            if (tmp.renameTo(dest)) {
+                prefs.edit().putInt("bundled_fa_version", BUNDLED_FA_VERSION).apply();
+                return true;
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        return false;
+    }
+
     private void reloadTexts() {
         titles = new CharSequence[]{
                 logoTitle,
@@ -201,17 +239,14 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
     public boolean onFragmentCreate() {
         MessagesController.getGlobalMainSettings().edit().putLong("intro_crashed_time", System.currentTimeMillis()).apply();
 
-        if (shouldUsePersian()) {
-            persianInfo = getPersianInfo();
-            if (persianInfo != null) {
-                // LocaleController already applies "fa" (and starts the download) on app start.
-                // Applying it again would start a second, racing download, so only do it if needed.
-                if (!isCurrentLocalePersian()) {
-                    LocaleController.getInstance().applyLanguage(persianInfo, true, false, currentAccount);
-                }
-                waitingForLanguage = !isPersianReady();
+        persianInfo = getPersianInfo();
+        if (persianInfo != null) {
+            boolean copied = installBundledPersian();
+            if (copied || !isCurrentLocalePersian()) {
+                LocaleController.getInstance().applyLanguage(persianInfo, true, false, currentAccount);
             }
         }
+        waitingForLanguage = false; // Persian is bundled in the app, never wait for a download
 
         reloadTexts();
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.reloadInterface);
@@ -557,10 +592,7 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
             AndroidUtilities.runOnUIThread(languageTimeoutRunnable, PERSIAN_WAIT_TIMEOUT_MS);
         }
 
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.suggestedLangpack);
-        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.configLoaded);
         ConnectionsManager.getInstance(currentAccount).updateDcSettings();
-        LocaleController.getInstance().loadRemoteLanguages(currentAccount);
         checkContinueText();
         justCreated = true;
 
@@ -609,69 +641,11 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
     }
 
     private void checkContinueText() {
-        LocaleController.LocaleInfo englishInfo = null;
-        LocaleController.LocaleInfo systemInfo = null;
-        LocaleController.LocaleInfo currentLocaleInfo = LocaleController.getInstance().getCurrentLocaleInfo();
-        String systemLang = MessagesController.getInstance(currentAccount).suggestedLangCode;
-        if (systemLang == null || systemLang.equals("en") && LocaleController.getInstance().getSystemDefaultLocale().getLanguage() != null && !LocaleController.getInstance().getSystemDefaultLocale().getLanguage().equals("en")) {
-            systemLang = LocaleController.getInstance().getSystemDefaultLocale().getLanguage();
-            if (systemLang == null) {
-                systemLang = "en";
-            }
-        }
-
-        String arg = systemLang.contains("-") ? systemLang.split("-")[0] : systemLang;
-        String alias = LocaleController.getLocaleAlias(arg);
-        for (int a = 0; a < LocaleController.getInstance().languages.size(); a++) {
-            LocaleController.LocaleInfo info = LocaleController.getInstance().languages.get(a);
-            if (info.shortName.equals("en")) {
-                englishInfo = info;
-            }
-            if (info.shortName.replace("_", "-").equals(systemLang) || info.shortName.equals(arg) || info.shortName.equals(alias)) {
-                systemInfo = info;
-            }
-            if (englishInfo != null && systemInfo != null) {
-                break;
-            }
-        }
-        if (isCurrentLocalePersian()) {
-            // user already has Persian: no "Continue in English" button
-            localeInfo = null;
+        // "Continue in English" button is removed completely
+        localeInfo = null;
+        if (switchLanguageTextView != null) {
             switchLanguageTextView.setVisibility(View.GONE);
-            return;
         }
-        if (englishInfo == null || systemInfo == null || englishInfo == systemInfo) {
-            return;
-        }
-        TLRPC.TL_langpack_getStrings req = new TLRPC.TL_langpack_getStrings();
-        if (systemInfo != currentLocaleInfo) {
-            req.lang_code = systemInfo.getLangCode();
-            localeInfo = systemInfo;
-        } else {
-            req.lang_code = englishInfo.getLangCode();
-            localeInfo = englishInfo;
-        }
-        req.keys.add("ContinueOnThisLanguage");
-        String finalSystemLang = systemLang;
-        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
-            if (response instanceof Vector) {
-                Vector vector = (Vector) response;
-                if (vector.objects.isEmpty()) {
-                    return;
-                }
-                final TLRPC.LangPackString string = (TLRPC.LangPackString) vector.objects.get(0);
-                if (string instanceof TLRPC.TL_langPackString) {
-                    AndroidUtilities.runOnUIThread(() -> {
-                        if (!destroyed && !isCurrentLocalePersian()) {
-                            switchLanguageTextView.setVisibility(View.VISIBLE);
-                            switchLanguageTextView.setText(string.value);
-                            SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-                            preferences.edit().putString("language_showed2", finalSystemLang.toLowerCase()).apply();
-                        }
-                    });
-                }
-            }
-        }, ConnectionsManager.RequestFlagWithoutLogin);
     }
 
     @Override
