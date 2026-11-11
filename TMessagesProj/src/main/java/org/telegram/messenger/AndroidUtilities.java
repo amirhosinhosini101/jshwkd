@@ -4246,14 +4246,29 @@ public class AndroidUtilities {
                         activity.startActivityForResult(intent, 500);
                     }
                 } catch (Exception e) {
+                    FileLog.e(e); // real cause of the failure (check Logcat)
                     if (activity == null) {
                         return;
                     }
+                    // Fallback: let the user pick any app with a generic MIME type
+                    try {
+                        Intent fallback = new Intent(Intent.ACTION_VIEW);
+                        fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        Uri fallbackUri = Build.VERSION.SDK_INT >= 24
+                                ? FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f)
+                                : Uri.fromFile(f);
+                        fallback.setDataAndType(fallbackUri, "*/*");
+                        activity.startActivity(Intent.createChooser(fallback, null));
+                        return;
+                    } catch (Exception e2) {
+                        FileLog.e(e2);
+                    }
+                    final int dialogTopColor = parentFragment != null ? parentFragment.getThemedColor(Theme.key_dialogTopBackground) : Theme.getColor(Theme.key_dialogTopBackground);
                     AlertDialog.Builder builder = new AlertDialog.Builder(activity);
                     Map<String, Integer> colorsReplacement = new HashMap<>();
-                    colorsReplacement.put("info1", parentFragment.getThemedColor(Theme.key_dialogTopBackground));
-                    colorsReplacement.put("info2", parentFragment.getThemedColor(Theme.key_dialogTopBackground));
-                    builder.setTopAnimation(R.raw.not_available, AlertsCreator.NEW_DENY_DIALOG_TOP_ICON_SIZE, false, parentFragment.getThemedColor(Theme.key_dialogTopBackground), colorsReplacement);
+                    colorsReplacement.put("info1", dialogTopColor);
+                    colorsReplacement.put("info2", dialogTopColor);
+                    builder.setTopAnimation(R.raw.not_available, AlertsCreator.NEW_DENY_DIALOG_TOP_ICON_SIZE, false, dialogTopColor, colorsReplacement);
                     builder.setTopAnimationIsNew(true);
                     builder.setPositiveButton(getString(R.string.OK), null);
                     builder.setMessage(LocaleController.formatString("NoHandleAppInstalled", R.string.NoHandleAppInstalled, message.getDocument().mime_type));
