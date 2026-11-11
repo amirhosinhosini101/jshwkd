@@ -735,10 +735,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         items.add(UItem.asHeader(getString(R.string.SettingsHelp)));
         items.add(SettingCell.Factory.of(17, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_ask, getString(R.string.AskAQuestion)));
-        items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_faq, getString(R.string.TelegramFAQ)));
+        items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_faq, isGitbinFa() ? "درباره ما" : "About Us"));
         items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_features, getString(R.string.TelegramFeatures)));
         items.add(SettingCell.Factory.of(19, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_policy, getString(R.string.PrivacyPolicy)));
-        items.add(SettingCell.Factory.of(25, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_features, "نظر دادن به برنامه"));
+        items.add(SettingCell.Factory.of(25, 0xFFB659FF, 0xFF617CFF, R.drawable.settings_premium, isGitbinFa() ? "نظر دادن به برنامه" : "Rate the App"));
 
         items.add(UItem.asCustomShadow(versionView));
     }
@@ -868,20 +868,45 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
     }
 
+    private boolean isGitbinFa() {
+        try {
+            LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
+            if (info != null && info.shortName != null) {
+                return info.shortName.toLowerCase().startsWith("fa");
+            }
+            return "fa".equals(LocaleController.getInstance().getCurrentLocale().getLanguage());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void showGitbinAboutDialog() {
         if (getParentActivity() == null) {
             return;
         }
+        final boolean fa = isGitbinFa();
         AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), resourceProvider);
-        builder.setTitle("درباره ما");
-        builder.setMessage(
-            "نام برنامه: گیت بین (Gitbin)\n\n" +
-            "توضیح: این برنامه یک نسخه اختصاصی و فارسی‌شده است که جهت راحتی و بهبود تجربه کاربری برای کاربران فارسی‌زبان طراحی، شخصی‌سازی و منتشر شده است.\n\n" +
-            "ویرایش‌کننده و ناشر: امیرحسین حسینی بهلولی\n\n" +
-            "ایمیل پشتیبانی: amirhosinhosini562@gmail.com\n\n" +
-            "وب‌سایت رسمی: Download.gitbin.site"
-        );
-        builder.setPositiveButton("باشه", null);
+        if (fa) {
+            builder.setTitle("درباره ما");
+            builder.setMessage(
+                "نام برنامه: گیت بین (Gitbin)\n\n" +
+                "توضیح: این برنامه یک نسخه اختصاصی و فارسی‌شده است که جهت راحتی و بهبود تجربه کاربری برای کاربران فارسی‌زبان طراحی، شخصی‌سازی و منتشر شده است.\n\n" +
+                "ویرایش‌کننده و ناشر: امیرحسین حسینی بهلولی\n\n" +
+                "ایمیل پشتیبانی: amirhosinhosini562@gmail.com\n\n" +
+                "وب‌سایت رسمی: Download.gitbin.site"
+            );
+            builder.setPositiveButton("باشه", null);
+        } else {
+            builder.setTitle("About Us");
+            builder.setMessage(
+                "App name: Gitbin\n\n" +
+                "Description: This is a custom, Persian-localized version of the app, designed, personalized and published to make things easier and improve the user experience for Persian-speaking users.\n\n" +
+                "Editor & publisher: Amirhossein Hosseini Bahlouli\n\n" +
+                "Support email: amirhosinhosini562@gmail.com\n\n" +
+                "Official website: Download.gitbin.site"
+            );
+            builder.setPositiveButton("OK", null);
+        }
         showDialog(builder.create());
     }
 
