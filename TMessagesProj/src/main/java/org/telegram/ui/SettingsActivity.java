@@ -738,20 +738,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         items.add(SettingCell.Factory.of(18, IconBackgroundColors.BLUE_LIGHT.top, IconBackgroundColors.BLUE_LIGHT.bottom, R.drawable.settings_faq, getString(R.string.TelegramFAQ)));
         items.add(SettingCell.Factory.of(23, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_features, getString(R.string.TelegramFeatures)));
         items.add(SettingCell.Factory.of(19, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_policy, getString(R.string.PrivacyPolicy)));
-
-        if (SharedSettings.experimentalSettingsAllowed.get()) {
-            items.add(UItem.asShadow(null));
-            items.add(UItem.asHeader("Experimental"));
-            items.add(SettingCell.Factory.of(24, 0xFFF45255, 0xFFDF3955, 0, getString(R.string.RoundVideoSettings)));
-        }
-
-        if (BuildVars.LOGS_ENABLED || BuildVars.DEBUG_PRIVATE_VERSION) {
-            items.add(UItem.asShadow(null));
-            items.add(UItem.asHeader(getString(R.string.SettingsDebug)));
-            items.add(SettingCell.Factory.of(20, 0xFF55CA47, 0xFF27B434, 0, getString(R.string.DebugSendLogs)));
-            items.add(SettingCell.Factory.of(21, 0xFF55CA47, 0xFF27B434, 0, getString(R.string.DebugSendLastLogs)));
-            items.add(SettingCell.Factory.of(22, 0xFFF45255, 0xFFDF3955, 0, getString(R.string.DebugClearLogs)));
-        }
+        items.add(SettingCell.Factory.of(25, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_features, "نظر دادن به برنامه"));
 
         items.add(UItem.asCustomShadow(versionView));
     }
@@ -857,24 +844,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
 
             case 17:
-                showDialog(AlertsCreator.createSupportAlert(this, resourceProvider));
+                Browser.openUrl(getParentActivity(), "https://GitBin.site/Support");
                 break;
             case 18:
-                Browser.openUrl(getParentActivity(), LocaleController.getString(R.string.TelegramFaqUrl));
+                showGitbinAboutDialog();
                 break;
             case 19:
                 Browser.openUrl(getParentActivity(), LocaleController.getString(R.string.PrivacyPolicyUrl));
                 break;
 
-            case 20:
-                ProfileActivity.sendLogs(getParentActivity(), false);
-                break;
-            case 21:
-                ProfileActivity.sendLogs(getParentActivity(), true);
-                break;
-            case 22:
-                FileLog.cleanupLogs();
-                break;
             case 23: {
                 if (MessagesController.getInstance(currentAccount).isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
@@ -883,10 +861,42 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 }
                 break;
             }
-            case 24: {
-                presentFragment(new RoundVideoSettingsActivity());
+            case 25: {
+                openMyketComment();
                 break;
             }
+        }
+    }
+
+    private void showGitbinAboutDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), resourceProvider);
+        builder.setTitle("درباره ما");
+        builder.setMessage(
+            "نام برنامه: گیت بین (Gitbin)\n\n" +
+            "توضیح: این برنامه یک نسخه اختصاصی و فارسی‌شده است که جهت راحتی و بهبود تجربه کاربری برای کاربران فارسی‌زبان طراحی، شخصی‌سازی و منتشر شده است.\n\n" +
+            "ویرایش‌کننده و ناشر: امیرحسین حسینی بهلولی\n\n" +
+            "ایمیل پشتیبانی: amirhosinhosini562@gmail.com\n\n" +
+            "وب‌سایت رسمی: Download.gitbin.site"
+        );
+        builder.setPositiveButton("باشه", null);
+        showDialog(builder.create());
+    }
+
+    private void openMyketComment() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("myket://comment?id=org.gitbin.com"));
+            getParentActivity().startActivity(intent);
+        } catch (android.content.ActivityNotFoundException e) {
+            // مایکت نصب نیست
+            Browser.openUrl(getParentActivity(), "https://myket.ir/app/org.gitbin.com");
+        } catch (Exception e) {
+            FileLog.e(e);
         }
     }
 
