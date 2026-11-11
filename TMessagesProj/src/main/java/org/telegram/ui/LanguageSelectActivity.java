@@ -462,8 +462,23 @@ public class LanguageSelectActivity extends BaseFragment implements Notification
                 unofficialLanguages.add(info);
             }
         }
+        // Gitbin: only Persian and English
+        retainOnlyFaEn(sortedLanguages);
+        retainOnlyFaEn(unofficialLanguages);
         Collections.sort(sortedLanguages, comparator);
         Collections.sort(unofficialLanguages, comparator);
+    }
+
+    private void retainOnlyFaEn(ArrayList<LocaleController.LocaleInfo> list) {
+        LocaleController.LocaleInfo current = LocaleController.getInstance().getCurrentLocaleInfo();
+        for (int i = list.size() - 1; i >= 0; i--) {
+            LocaleController.LocaleInfo info = list.get(i);
+            String code = info.shortName == null ? "" : info.shortName.toLowerCase();
+            boolean allowed = code.equals("fa") || code.equals("en") || info == current;
+            if (!allowed) {
+                list.remove(i);
+            }
+        }
     }
 
     @Override
