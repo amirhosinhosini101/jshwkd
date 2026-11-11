@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.DialogObject;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
@@ -245,6 +246,40 @@ public class ReportBottomSheet extends BottomSheet {
         return true;
     }
 
+    private static boolean isGitbinFa() {
+        try {
+            LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
+            if (info != null && info.shortName != null) {
+                return info.shortName.toLowerCase().startsWith("fa");
+            }
+            return "fa".equals(LocaleController.getInstance().getCurrentLocale().getLanguage());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Report option texts come from Telegram servers (English only), translate them when the app is Persian.
+    private static CharSequence trReport(CharSequence text) {
+        if (text == null || !isGitbinFa()) {
+            return text;
+        }
+        switch (text.toString().trim().toLowerCase()) {
+            case "report": return "گزارش";
+            case "scam or spam": return "کلاهبرداری یا اسپم";
+            case "spam": return "اسپم";
+            case "scam": return "کلاهبرداری";
+            case "violence": return "خشونت";
+            case "pornography": return "محتوای مستهجن";
+            case "child abuse": return "آزار کودکان";
+            case "illegal drugs": return "مواد مخدر غیرقانونی";
+            case "personal details": return "اطلاعات شخصی";
+            case "copyright": return "نقض حق کپی‌رایت";
+            case "fake or impersonation": return "جعل هویت یا حساب جعلی";
+            case "other": return "سایر";
+            default: return text;
+        }
+    }
+
     private void submitOption(final CharSequence optionText, final byte[] option, final String comment) {
         TLObject request;
         if (sponsored) {
@@ -306,7 +341,7 @@ public class ReportBottomSheet extends BottomSheet {
                                 nextPage.setOption((TLRPC.TL_channels_sponsoredMessageReportResultChooseOption) response);
                             }
                             if (optionText != null) {
-                                nextPage.setHeaderText(optionText);
+                                nextPage.setHeaderText(trReport(optionText));
                             }
                         }
                     } else if (response instanceof TLRPC.TL_channels_sponsoredMessageReportResultAdsHidden) {
@@ -325,8 +360,13 @@ public class ReportBottomSheet extends BottomSheet {
                         }
                     }
                 } else if (error != null) {
+                    FileLog.e("report error: " + error.code + " " + error.text);
                     if (!sponsored && "MESSAGE_ID_REQUIRED".equals(error.text)) {
-                        ChatActivity.openReportChat(dialogId, optionText.toString(), option, comment);
+                        try {
+                            ChatActivity.openReportChat(dialogId, optionText == null ? "" : optionText.toString(), option, comment);
+                        } catch (Throwable t) {
+                            FileLog.e(t);
+                        }
                     } else if ("PREMIUM_ACCOUNT_REQUIRED".equals(error.text)) {
                         if (listener != null) {
                             listener.onPremiumRequired();
@@ -555,9 +595,9 @@ public class ReportBottomSheet extends BottomSheet {
                 if (sponsoredOption != null || option != null) {
                     HeaderCell headerCell = new HeaderCell(getContext(), Theme.key_windowBackgroundWhiteBlueHeader, 21, 0, 0, false, resourcesProvider);
                     if (sponsoredOption != null) {
-                        headerCell.setText(sponsoredOption.title);
+                        headerCell.setText(trReport(sponsoredOption.title));
                     } else if (option != null) {
-                        headerCell.setText(option.title);
+                        headerCell.setText(trReport(option.title));
                     }
                     headerCell.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
                     UItem headerItem = UItem.asCustom(headerCell);
@@ -569,7 +609,7 @@ public class ReportBottomSheet extends BottomSheet {
                 if (sponsoredOption != null) {
                     for (int i = 0; i < sponsoredOption.options.size(); i++) {
                         UItem buttonItem = new UItem(UniversalAdapter.VIEW_TYPE_RIGHT_ICON_TEXT, false);
-                        buttonItem.text = sponsoredOption.options.get(i).text;
+                        buttonItem.text = trReport(sponsoredOption.options.get(i).text);
                         buttonItem.iconResId = R.drawable.msg_arrowright;
                         buttonItem.id = i;
                         items.add(buttonItem);
@@ -578,7 +618,7 @@ public class ReportBottomSheet extends BottomSheet {
                 } else if (option != null) {
                     for (int i = 0; i < option.options.size(); i++) {
                         UItem buttonItem = new UItem(UniversalAdapter.VIEW_TYPE_RIGHT_ICON_TEXT, false);
-                        buttonItem.text = option.options.get(i).text;
+                        buttonItem.text = trReport(option.options.get(i).text);
                         buttonItem.iconResId = R.drawable.msg_arrowright;
                         buttonItem.id = i;
                         items.add(buttonItem);
