@@ -142,6 +142,48 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
         }
     }
 
+    private static boolean isGitbinFa() {
+        try {
+            LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
+            if (info != null && info.shortName != null) {
+                return info.shortName.toLowerCase().startsWith("fa");
+            }
+            return "fa".equals(LocaleController.getInstance().getCurrentLocale().getLanguage());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static String translateSuggestedTitle(String text) {
+        if (text == null || !isGitbinFa()) {
+            return text;
+        }
+        switch (text.trim().toLowerCase()) {
+            case "unread": return "خوانده‌نشده";
+            case "personal": return "شخصی";
+            case "unmuted": return "بی‌صدا نشده";
+            case "groups": return "گروه‌ها";
+            case "channels": return "کانال‌ها";
+            case "bots": return "ربات‌ها";
+            default: return text;
+        }
+    }
+
+    public static String translateSuggestedDescription(String text) {
+        if (text == null || !isGitbinFa()) {
+            return text;
+        }
+        switch (text.trim().toLowerCase()) {
+            case "new messages": return "پیام‌های جدید";
+            case "personal chats": return "گفتگوهای شخصی";
+            case "unmuted chats": return "گفتگوهای بی‌صدا نشده";
+            case "group chats": return "گفتگوهای گروهی";
+            case "channels only": return "فقط کانال‌ها";
+            case "bot chats": return "گفتگوهای ربات";
+            default: return text;
+        }
+    }
+
     public static class SuggestedFilterCell extends FrameLayout {
 
         private TextView textView;
@@ -194,8 +236,8 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             suggestedFilter = filter;
             setWillNotDraw(!needDivider);
 
-            textView.setText(filter.filter.title.text);
-            valueTextView.setText(filter.description);
+            textView.setText(translateSuggestedTitle(filter.filter.title.text));
+            valueTextView.setText(translateSuggestedDescription(filter.description));
         }
 
         public TLRPC.TL_dialogFilterSuggested getSuggestedFilter() {
@@ -982,8 +1024,12 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                     suggestedFilterCell.setAddOnClickListener(v -> {
                         TLRPC.TL_dialogFilterSuggested suggested = suggestedFilterCell.getSuggestedFilter();
                         MessagesController.DialogFilter filter = new MessagesController.DialogFilter();
-                        filter.name = suggested.filter.title.text;
-                        filter.entities = suggested.filter.title.entities;
+                        filter.name = translateSuggestedTitle(suggested.filter.title.text);
+                        if (!filter.name.equals(suggested.filter.title.text)) {
+                            filter.entities = new ArrayList<>();
+                        } else {
+                            filter.entities = suggested.filter.title.entities;
+                        }
                         filter.id = 2;
                         while (getMessagesController().dialogFiltersById.get(filter.id) != null) {
                             filter.id++;
