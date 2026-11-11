@@ -180,13 +180,8 @@ public class DataSettingsActivity extends BaseFragment {
 //        autoplaySectionRow = rowCount++;
         streamSectionRow = rowCount++;
         enableStreamRow = rowCount++;
-        if (BuildVars.DEBUG_VERSION) {
-            enableMkvRow = rowCount++;
-            enableAllStreamRow = rowCount++;
-        } else {
-            enableAllStreamRow = -1;
-            enableMkvRow = -1;
-        }
+        enableAllStreamRow = -1;
+        enableMkvRow = -1;
         enableAllStreamInfoRow = rowCount++;
 
         enableCacheStreamRow = -1;//rowCount++;
@@ -194,9 +189,9 @@ public class DataSettingsActivity extends BaseFragment {
         useLessDataForCallsRow = rowCount++;
 //        quickRepliesRow = rowCount++;
         callsSection2Row = rowCount++;
-        proxySectionRow = rowCount++;
-        proxyRow = rowCount++;
-        proxySection2Row = rowCount++;
+        proxySectionRow = -1;
+        proxyRow = -1;
+        proxySection2Row = -1;
         clearDraftsRow = rowCount++;
         clearDraftsSectionRow = rowCount++;
 
