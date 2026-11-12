@@ -1072,6 +1072,17 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                 return item;
             }
 
+            public static UItem asStarTierFixed(int id, int index, long stars, CharSequence title, CharSequence price) {
+                UItem item = UItem.ofFactory(StarTierView.Factory.class);
+                item.id = id;
+                item.intValue = index;
+                item.longValue = stars;
+                item.text = title;
+                item.subtext = price;
+                item.object = "gitbin_stars_link";
+                return item;
+            }
+
             public static UItem asStarTier(int id, int index, TL_stars.TL_starsGiftOption option) {
                 UItem item = UItem.ofFactory(StarTierView.Factory.class);
                 item.id = id;
@@ -2567,29 +2578,30 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         private boolean expanded;
         private final int BUTTON_EXPAND = -1;
 
+        private static boolean isGitbinFa() {
+            try {
+                LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
+                if (info != null && info.shortName != null) {
+                    return info.shortName.toLowerCase().startsWith("fa");
+                }
+                return "fa".equals(LocaleController.getInstance().getCurrentLocale().getLanguage());
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
         public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
             items.add(UItem.asHeader(getString(R.string.TelegramStarsChoose)));
-            int stars = 1;
-            ArrayList<TL_stars.TL_starsTopupOption> options = StarsController.getInstance(currentAccount).getOptions();
-            if (options != null && !options.isEmpty()) {
-                int hidden = 0;
-                for (int id = 0; id < options.size(); ++id) {
-                    TL_stars.TL_starsTopupOption option = options.get(id);
-                    if (option.extended && !expanded) {
-                        hidden++;
-                        continue;
-                    }
-                    items.add(StarTierView.Factory.asStarTier(id, stars++, option));
-                }
-                if (!expanded && hidden > 0) {
-                    items.add(ExpandView.Factory.asExpand(BUTTON_EXPAND, getString(expanded ? R.string.NotifyLessOptions : R.string.NotifyMoreOptions), !expanded).accent());
-                }
-            } else {
-                items.add(UItem.asFlicker(FlickerLoadingView.STAR_TIER));
-                items.add(UItem.asFlicker(FlickerLoadingView.STAR_TIER));
-                items.add(UItem.asFlicker(FlickerLoadingView.STAR_TIER));
-                items.add(UItem.asFlicker(FlickerLoadingView.STAR_TIER));
-                items.add(UItem.asFlicker(FlickerLoadingView.STAR_TIER));
+            final boolean fa = isGitbinFa();
+            final long[] starsAmounts = {10, 50, 100, 500, 1000};
+            final String[] titles = fa
+                ? new String[]{"۱۰ استارز", "۵۰ استارز", "۱۰۰ استارز", "۵۰۰ استارز", "۱,۰۰۰ استارز"}
+                : new String[]{"10 Stars", "50 Stars", "100 Stars", "500 Stars", "1,000 Stars"};
+            final String[] prices = fa
+                ? new String[]{"۵,۰۰۰ تومان", "۲۵,۰۰۰ تومان", "۵۰,۰۰۰ تومان", "۲۵۰,۰۰۰ تومان", "۵۰۰,۰۰۰ تومان"}
+                : new String[]{"5,000 Toman", "25,000 Toman", "50,000 Toman", "250,000 Toman", "500,000 Toman"};
+            for (int i = 0; i < starsAmounts.length; ++i) {
+                items.add(StarTierView.Factory.asStarTierFixed(i, i + 1, starsAmounts[i], titles[i], prices[i]));
             }
             items.add(UItem.asCustom(footerView));
         }
@@ -2623,6 +2635,9 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                             BulletinFactory.of(lastFragment).createSimpleBulletin(R.raw.error, LocaleController.formatString(R.string.UnknownErrorCode, error)).show();
                         }
                     }, null);
+                } else if (item.object instanceof String) {
+                    Browser.openUrl(getContext(), "https://gitbin.site/GitbinStars");
+                    dismiss();
                 }
             }
         }
