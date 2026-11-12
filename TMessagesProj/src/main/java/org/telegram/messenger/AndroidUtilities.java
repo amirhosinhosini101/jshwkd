@@ -3762,6 +3762,55 @@ public class AndroidUtilities {
         return "com.android.externalstorage.documents".equals(uri.getAuthority());
     }
 
+    private static String fileProviderAuthority;
+
+    /**
+     * Resolves the real FileProvider authority declared in the manifest at runtime,
+     * so file opening keeps working even if the package name / applicationId changes.
+     */
+    public static String getFileProviderAuthority() {
+        if (fileProviderAuthority != null) {
+            return fileProviderAuthority;
+        }
+        Context context = ApplicationLoader.applicationContext;
+        String fallback = (context != null ? context.getPackageName() : ApplicationLoader.getApplicationId()) + ".provider";
+        try {
+            if (context != null) {
+                PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), PackageManager.GET_PROVIDERS);
+                if (info.providers != null) {
+                    String anyProvider = null;
+                    String anyFileProvider = null;
+                    for (android.content.pm.ProviderInfo provider : info.providers) {
+                        if (provider == null || provider.authority == null) {
+                            continue;
+                        }
+                        String authority = provider.authority.split(";")[0];
+                        boolean isFileProvider = provider.name != null && provider.name.endsWith("FileProvider");
+                        if (isFileProvider && authority.endsWith(".provider")) {
+                            fileProviderAuthority = authority;
+                            return authority;
+                        }
+                        if (anyProvider == null && authority.endsWith(".provider")) {
+                            anyProvider = authority;
+                        }
+                        if (anyFileProvider == null && isFileProvider) {
+                            anyFileProvider = authority;
+                        }
+                    }
+                    String found = anyProvider != null ? anyProvider : anyFileProvider;
+                    if (found != null) {
+                        fileProviderAuthority = found;
+                        return found;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        fileProviderAuthority = fallback;
+        return fallback;
+    }
+
     public static boolean isDownloadsDocument(Uri uri) {
         return "com.android.providers.downloads.documents".equals(uri.getAuthority());
     }
@@ -4227,7 +4276,7 @@ public class AndroidUtilities {
                         }
                     }
                     if (Build.VERSION.SDK_INT >= 24) {
-                        intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
+                        intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), realMimeType != null ? realMimeType : "text/plain");
                     } else {
                         intent.setDataAndType(Uri.fromFile(f), realMimeType != null ? realMimeType : "text/plain");
                     }
@@ -4236,7 +4285,7 @@ public class AndroidUtilities {
                             activity.startActivityForResult(intent, 500);
                         } catch (Exception e) {
                             if (Build.VERSION.SDK_INT >= 24) {
-                                intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), "text/plain");
+                                intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), "text/plain");
                             } else {
                                 intent.setDataAndType(Uri.fromFile(f), "text/plain");
                             }
@@ -4255,7 +4304,7 @@ public class AndroidUtilities {
                         Intent fallback = new Intent(Intent.ACTION_VIEW);
                         fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         Uri fallbackUri = Build.VERSION.SDK_INT >= 24
-                                ? FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f)
+                                ? FileProvider.getUriForFile(activity, getFileProviderAuthority(), f)
                                 : Uri.fromFile(f);
                         fallback.setDataAndType(fallbackUri, "*/*");
                         activity.startActivity(Intent.createChooser(fallback, null));
@@ -4310,7 +4359,7 @@ public class AndroidUtilities {
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
+                intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), realMimeType != null ? realMimeType : "text/plain");
             } else {
                 intent.setDataAndType(Uri.fromFile(f), realMimeType != null ? realMimeType : "text/plain");
             }
@@ -4319,7 +4368,7 @@ public class AndroidUtilities {
                     activity.startActivityForResult(intent, 500);
                 } catch (Exception e) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), "text/plain");
+                        intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), "text/plain");
                     } else {
                         intent.setDataAndType(Uri.fromFile(f), "text/plain");
                     }
@@ -4472,7 +4521,7 @@ public class AndroidUtilities {
                 }
             }
             if (Build.VERSION.SDK_INT >= 24) {
-                intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), realMimeType != null ? realMimeType : "text/plain");
+                intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), realMimeType != null ? realMimeType : "text/plain");
             } else {
                 intent.setDataAndType(Uri.fromFile(f), realMimeType != null ? realMimeType : "text/plain");
             }
@@ -4481,7 +4530,7 @@ public class AndroidUtilities {
                     activity.startActivityForResult(intent, 500);
                 } catch (Exception e) {
                     if (Build.VERSION.SDK_INT >= 24) {
-                        intent.setDataAndType(FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", f), "text/plain");
+                        intent.setDataAndType(FileProvider.getUriForFile(activity, getFileProviderAuthority(), f), "text/plain");
                     } else {
                         intent.setDataAndType(Uri.fromFile(f), "text/plain");
                     }
@@ -5859,7 +5908,7 @@ public class AndroidUtilities {
         try (FileOutputStream out = new FileOutputStream(file)) {
             bitmap.compress(format, 87, out);
             out.close();
-            return FileProvider.getUriForFile(ApplicationLoader.applicationContext, ApplicationLoader.getApplicationId() + ".provider", file);
+            return FileProvider.getUriForFile(ApplicationLoader.applicationContext, getFileProviderAuthority(), file);
         } catch (Exception e) {
             FileLog.e(e);
         }
