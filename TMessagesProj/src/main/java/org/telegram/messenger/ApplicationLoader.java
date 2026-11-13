@@ -13,6 +13,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.graphics.Typeface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -279,6 +280,23 @@ public class ApplicationLoader extends Application {
         super();
     }
 
+    private static void applyCustomFont() {
+        try {
+            Typeface custom = Typeface.createFromAsset(applicationContext.getAssets(), "fonts/fontmamad.ttf");
+            String[] names = {"DEFAULT", "DEFAULT_BOLD", "SANS_SERIF", "SERIF"};
+            for (String n : names) {
+                try {
+                    java.lang.reflect.Field f = Typeface.class.getDeclaredField(n);
+                    f.setAccessible(true);
+                    f.set(null, custom);
+                } catch (Throwable ignore) {
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     @Override
     public void onCreate() {
         applicationLoaderInstance = this;
@@ -289,6 +307,8 @@ public class ApplicationLoader extends Application {
         }
 
         super.onCreate();
+
+        applyCustomFont();
 
         // AndroidUtilities must be initialized before FileLog
         final String helloWorld = AndroidUtilities.getHelloWorld();
