@@ -282,7 +282,10 @@ public class ApplicationLoader extends Application {
 
     private static void applyCustomFont() {
         try {
-            Typeface custom = Typeface.createFromAsset(applicationContext.getAssets(), "fonts/fontmamad.ttf");
+            Typeface custom = AndroidUtilities.getTypeface("fonts/rregular.ttf");
+            if (custom == null) {
+                return;
+            }
             String[] names = {"DEFAULT", "DEFAULT_BOLD", "SANS_SERIF", "SERIF"};
             for (String n : names) {
                 try {
