@@ -19,6 +19,16 @@ import android.app.TimePickerDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.database.Cursor;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.provider.OpenableColumns;
+import android.util.TypedValue;
+import android.widget.Toast;
+import java.io.IOException;
+import java.io.InputStream;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
@@ -235,6 +245,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     @Keep
     private int appIconSelectorRow;
     private int appIconShadowRow;
+    private int fontHeaderRow;
+    private int fontSelectorRow;
+    private int fontInfoRow;
+    private final static int REQUEST_PICK_FONT = 7701;
 
     private int rowCount;
 
@@ -609,6 +623,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         appIconHeaderRow = -1;
         appIconSelectorRow = -1;
         appIconShadowRow = -1;
+        fontHeaderRow = -1;
+        fontSelectorRow = -1;
+        fontInfoRow = -1;
         lastShadowRow = -1;
 
         defaultThemes.clear();
@@ -658,6 +675,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             backgroundRow = rowCount++;
             changeUserColor = rowCount++;
             newThemeInfoRow = rowCount++;
+            fontHeaderRow = rowCount++;
+            fontSelectorRow = rowCount++;
+            fontInfoRow = rowCount++;
             themeHeaderRow = rowCount++;
 
             themeListRow2 = rowCount++;
@@ -2056,6 +2076,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         private final static int TYPE_SAVE_TO_GALLERY = 19;
         private final static int TYPE_APP_ICON = 20;
         private final static int TYPE_CHOOSE_COLOR = 21;
+        private final static int TYPE_FONT_SELECTOR = 22;
 
         private Context mContext;
         private boolean first = true;
@@ -2455,6 +2476,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 case TYPE_CHOOSE_COLOR:
                     view = new PeerColorActivity.ChangeNameColorCell(currentAccount, 0, mContext, getResourceProvider());
                     break;
+                case TYPE_FONT_SELECTOR:
+                    view = new FontSelectorCell(mContext);
+                    break;
             }
             return new RecyclerListView.Holder(view);
         }
@@ -2578,6 +2602,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         headerCell.setText(getString("OtherSettings", R.string.OtherSettings));
                     } else if (position == mediaSoundHeaderRow) {
                         headerCell.setText(getString("MediaAndSoundSettings", R.string.MediaAndSoundSettings));
+                    } else if (position == fontHeaderRow) {
+                        headerCell.setText("فونت برنامه");
                     }
                     break;
                 }
@@ -2707,6 +2733,11 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 case TYPE_CHOOSE_COLOR: {
                     PeerColorActivity.ChangeNameColorCell cell = (PeerColorActivity.ChangeNameColorCell) holder.itemView;
                     cell.set(getUserConfig().getCurrentUser());
+                    break;
+                }
+                case TYPE_FONT_SELECTOR: {
+                    ((FontSelectorCell) holder.itemView).update();
+                    break;
                 }
             }
         }
@@ -2721,6 +2752,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
         @Override
         public int getItemViewType(int position) {
+            if (position == fontSelectorRow) {
+                return TYPE_FONT_SELECTOR;
+            } else if (position == fontHeaderRow) {
+                return TYPE_HEADER;
+            } else if (position == fontInfoRow) {
+                return TYPE_SHADOW;
+            }
             if (position == scheduleFromRow || position == distanceRow ||
                     position == scheduleToRow || position == scheduleUpdateLocationRow ||
                     position == contactsReimportRow || position == contactsSortRow ||
@@ -2778,6 +2816,365 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             return TYPE_TEXT_SETTING;
         }
     }
+
+
+    // ======================= Custom font feature =======================
+
+    private SharedPreferences fontPrefs() {
+        return ApplicationLoader.applicationContext.getSharedPreferences("user_font_prefs", Context.MODE_PRIVATE);
+    }
+
+    private boolean userFontExists() {
+        File f = AndroidUtilities.getUserFontFile();
+        return f.exists() && f.length() > 0;
+    }
+
+    private void refreshFontCell() {
+        if (listAdapter != null && fontSelectorRow >= 0) {
+            listAdapter.notifyItemChanged(fontSelectorRow);
+        }
+    }
+
+    private void onSelectDefaultFont() {
+        if (!AndroidUtilities.isUserFontEnabled()) {
+            return;
+        }
+        fontPrefs().edit().putBoolean("enabled", false).apply();
+        AndroidUtilities.resetTypefaceCache();
+        refreshFontCell();
+        showFontRestartDialog();
+    }
+
+    private void onSelectUserFont() {
+        if (!userFontExists()) {
+            openFontPicker();
+            return;
+        }
+        if (AndroidUtilities.isUserFontEnabled()) {
+            return;
+        }
+        fontPrefs().edit().putBoolean("enabled", true).apply();
+        AndroidUtilities.resetTypefaceCache();
+        refreshFontCell();
+        showFontRestartDialog();
+    }
+
+    private void onDeleteUserFont() {
+        try {
+            AndroidUtilities.getUserFontFile().delete();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        fontPrefs().edit().putBoolean("enabled", false).remove("name").apply();
+        AndroidUtilities.resetTypefaceCache();
+        refreshFontCell();
+        showFontRestartDialog();
+    }
+
+    private void openFontPicker() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(intent, REQUEST_PICK_FONT);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            Toast.makeText(ApplicationLoader.applicationContext, "فایل‌منیجر پیدا نشد", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_FONT && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+            importFont(data.getData());
+        }
+    }
+
+    private static boolean looksLikeFont(File f) {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            byte[] h = new byte[4];
+            if (in.read(h) != 4) {
+                return false;
+            }
+            String tag = new String(h, "ISO-8859-1");
+            return (h[0] == 0 && h[1] == 1 && h[2] == 0 && h[3] == 0) || "true".equals(tag) || "OTTO".equals(tag) || "ttcf".equals(tag);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private void importFont(Uri uri) {
+        Activity act = getParentActivity();
+        if (act == null) {
+            return;
+        }
+        File tmp = new File(ApplicationLoader.applicationContext.getCacheDir(), "user_font_tmp");
+        String name = null;
+        try (InputStream in = act.getContentResolver().openInputStream(uri);
+             FileOutputStream out = new FileOutputStream(tmp)) {
+            if (in == null) {
+                throw new IOException("no stream");
+            }
+            byte[] buf = new byte[16 * 1024];
+            int n;
+            long total = 0;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                total += n;
+                if (total > 30L * 1024 * 1024) {
+                    throw new IOException("too big");
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            tmp.delete();
+            Toast.makeText(ApplicationLoader.applicationContext, "خواندن فایل ناموفق بود", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!looksLikeFont(tmp)) {
+            tmp.delete();
+            Toast.makeText(ApplicationLoader.applicationContext, "این فایل یک فونت معتبر (TTF یا OTF) نیست", Toast.LENGTH_LONG).show();
+            return;
+        }
+        try (Cursor c = act.getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                name = c.getString(0);
+            }
+        } catch (Throwable ignore) {
+        }
+        try {
+            File dest = AndroidUtilities.getUserFontFile();
+            if (dest.exists()) {
+                dest.delete();
+            }
+            if (!tmp.renameTo(dest)) {
+                throw new IOException("rename failed");
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            Toast.makeText(ApplicationLoader.applicationContext, "ذخیره فونت ناموفق بود", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        fontPrefs().edit().putBoolean("enabled", true).putString("name", name != null ? name : "user_font.ttf").apply();
+        AndroidUtilities.resetTypefaceCache();
+        refreshFontCell();
+        showFontRestartDialog();
+    }
+
+    private void showFontRestartDialog() {
+        Activity act = getParentActivity();
+        if (act == null) {
+            return;
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(act);
+        b.setTitle("اعمال فونت");
+        b.setMessage("برای اعمال فونت روی تمام بخش‌های برنامه، لازم است برنامه دوباره راه‌اندازی شود.");
+        b.setPositiveButton("راه‌اندازی مجدد", (d, w) -> restartApp());
+        b.setNegativeButton("بعداً", null);
+        showDialog(b.create());
+    }
+
+    private void restartApp() {
+        try {
+            Context ctx = ApplicationLoader.applicationContext;
+            Intent i = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+            if (i == null) {
+                return;
+            }
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            PendingIntent pi = PendingIntent.getActivity(ctx, 7702, i, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            am.set(AlarmManager.RTC, System.currentTimeMillis() + 400, pi);
+            System.exit(0);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    private static GradientDrawable roundBg(int fill, int radiusDp, int strokeDp, int strokeColor) {
+        GradientDrawable gd = new GradientDrawable();
+        gd.setCornerRadius(dp(radiusDp));
+        gd.setColor(fill);
+        if (strokeDp > 0) {
+            gd.setStroke(dp(strokeDp), strokeColor);
+        }
+        return gd;
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return (color & 0x00FFFFFF) | (alpha << 24);
+    }
+
+    private class FontCard extends FrameLayout {
+        final TextView aa, title, sub, check;
+
+        FontCard(Context c) {
+            super(c);
+            LinearLayout content = new LinearLayout(c);
+            content.setOrientation(LinearLayout.VERTICAL);
+            content.setGravity(Gravity.CENTER_HORIZONTAL);
+
+            aa = new TextView(c);
+            aa.setText("Aa");
+            aa.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 38);
+            aa.setGravity(Gravity.CENTER);
+            content.addView(aa, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            title = new TextView(c);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+            title.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            tp.topMargin = dp(6);
+            content.addView(title, tp);
+
+            sub = new TextView(c);
+            sub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+            sub.setGravity(Gravity.CENTER);
+            sub.setSingleLine(true);
+            sub.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            sp.topMargin = dp(2);
+            content.addView(sub, sp);
+
+            FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+            cp.setMargins(dp(8), dp(22), dp(8), dp(16));
+            addView(content, cp);
+
+            check = new TextView(c);
+            check.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            check.setGravity(Gravity.CENTER);
+            FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP | Gravity.LEFT);
+            kp.setMargins(dp(10), dp(10), 0, 0);
+            addView(check, kp);
+        }
+
+        void bind(Typeface tf, String titleText, String subText, boolean selected) {
+            int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+            int onAccent = Theme.getColor(Theme.key_featuredStickers_buttonText);
+            int divider = Theme.getColor(Theme.key_divider);
+            int gray = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
+            int black = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
+            setBackground(selected
+                    ? roundBg(withAlpha(accent, 0x22), 16, 2, accent)
+                    : roundBg(Theme.getColor(Theme.key_windowBackgroundGray), 16, 1, divider));
+            if (tf != null) {
+                aa.setTypeface(tf);
+            }
+            aa.setTextColor(selected ? accent : black);
+            title.setText(titleText);
+            title.setTextColor(black);
+            sub.setText(subText);
+            sub.setTextColor(gray);
+            if (selected) {
+                check.setText("✓");
+                check.setTextColor(onAccent);
+                check.setBackground(roundBg(accent, 11, 0, 0));
+            } else {
+                check.setText("");
+                check.setBackground(roundBg(0x00000000, 11, 1, divider));
+            }
+        }
+    }
+
+    private class FontSelectorCell extends LinearLayout {
+        private final FontCard defaultCard, userCard;
+        private final TextView previewText, addButton, deleteButton;
+        private final LinearLayout previewBox;
+        private Typeface defaultTf;
+
+        FontSelectorCell(Context c) {
+            super(c);
+            setOrientation(VERTICAL);
+            setPadding(dp(16), dp(8), dp(16), dp(16));
+
+            LinearLayout cards = new LinearLayout(c);
+            cards.setOrientation(HORIZONTAL);
+            defaultCard = new FontCard(c);
+            userCard = new FontCard(c);
+            LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp1.rightMargin = dp(6);
+            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp2.leftMargin = dp(6);
+            cards.addView(defaultCard, lp1);
+            cards.addView(userCard, lp2);
+            addView(cards, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            defaultCard.setOnClickListener(v -> onSelectDefaultFont());
+            userCard.setOnClickListener(v -> onSelectUserFont());
+
+            previewBox = new LinearLayout(c);
+            previewBox.setOrientation(VERTICAL);
+            previewBox.setPadding(dp(16), dp(14), dp(16), dp(14));
+            previewText = new TextView(c);
+            previewText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+            previewText.setLineSpacing(dp(4), 1f);
+            previewText.setText("سلام! 👋 این پیش‌نمایش فونت انتخابی شماست.\nThe quick brown fox jumps over the lazy dog\n۰۱۲۳۴۵۶۷۸۹ 0123456789");
+            previewBox.addView(previewText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams pb = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            pb.topMargin = dp(12);
+            addView(previewBox, pb);
+
+            addButton = new TextView(c);
+            addButton.setGravity(Gravity.CENTER);
+            addButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            addButton.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+            addButton.setOnClickListener(v -> openFontPicker());
+            LinearLayout.LayoutParams ab = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+            ab.topMargin = dp(12);
+            addView(addButton, ab);
+
+            deleteButton = new TextView(c);
+            deleteButton.setGravity(Gravity.CENTER);
+            deleteButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            deleteButton.setText("حذف فونت من");
+            deleteButton.setOnClickListener(v -> onDeleteUserFont());
+            LinearLayout.LayoutParams db = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
+            db.topMargin = dp(4);
+            addView(deleteButton, db);
+
+            try {
+                defaultTf = Typeface.createFromAsset(c.getAssets(), AndroidUtilities.TYPEFACE_CUSTOM);
+            } catch (Throwable e) {
+                defaultTf = Typeface.DEFAULT;
+            }
+        }
+
+        void update() {
+            boolean hasUser = userFontExists();
+            boolean userActive = hasUser && AndroidUtilities.isUserFontEnabled();
+            int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+            int onAccent = Theme.getColor(Theme.key_featuredStickers_buttonText);
+
+            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+
+            Typeface userTf = null;
+            if (hasUser) {
+                try {
+                    userTf = Typeface.createFromFile(AndroidUtilities.getUserFontFile());
+                } catch (Throwable ignore) {
+                }
+            }
+            String userName = fontPrefs().getString("name", "user_font.ttf");
+
+            defaultCard.bind(defaultTf, "فونت اصلی برنامه", "پیش‌فرض", !userActive);
+            userCard.bind(userTf != null ? userTf : defaultTf, "فونت من", hasUser ? userName : "هنوز اضافه نشده", userActive);
+
+            previewBox.setBackground(roundBg(Theme.getColor(Theme.key_windowBackgroundGray), 14, 0, 0));
+            previewText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            previewText.setTypeface(userActive && userTf != null ? userTf : defaultTf);
+
+            addButton.setText(hasUser ? "＋  تغییر فونت من" : "＋  افزودن فونت از حافظه");
+            addButton.setTextColor(onAccent);
+            addButton.setBackground(roundBg(accent, 14, 0, 0));
+
+            deleteButton.setVisibility(hasUser ? VISIBLE : GONE);
+            deleteButton.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+        }
+    }
+
+    // ===================== end of custom font feature =====================
 
     private static abstract class TintRecyclerListView extends RecyclerListView {
         TintRecyclerListView(Context context) {
