@@ -254,7 +254,6 @@ public class AndroidUtilities {
     public final static String TYPEFACE_ROBOTO_MEDIUM_ITALIC = "fonts/rmediumitalic.ttf";
     public final static String TYPEFACE_ROBOTO_MONO = "fonts/rmono.ttf";
     public final static String TYPEFACE_MERRIWEATHER_BOLD = "fonts/mw_bold.ttf";
-    public final static String TYPEFACE_CUSTOM = "fonts/fontmamad.ttf";
 
     public static Typeface mediumTypeface;
     public static ThreadLocal<byte[]> readBufferLocal = new ThreadLocal<>();
@@ -262,7 +261,7 @@ public class AndroidUtilities {
 
     public static Typeface bold() {
         if (mediumTypeface == null) {
-            if (false && SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 mediumTypeface = Typeface.create(null, 500, false);
             } else {
                 mediumTypeface = getTypeface(TYPEFACE_ROBOTO_MEDIUM);
@@ -2390,39 +2389,13 @@ public class AndroidUtilities {
         return result;
     }
 
-    public static java.io.File getUserFontFile() {
-        return new java.io.File(ApplicationLoader.applicationContext.getFilesDir(), "user_font.ttf");
-    }
-
-    public static boolean isUserFontEnabled() {
-        try {
-            return ApplicationLoader.applicationContext
-                    .getSharedPreferences("user_font_prefs", Context.MODE_PRIVATE)
-                    .getBoolean("enabled", false);
-        } catch (Throwable e) {
-            return false;
-        }
-    }
-
-    public static void resetTypefaceCache() {
-        synchronized (typefaceCache) {
-            typefaceCache.clear();
-        }
-    }
-
     public static Typeface getTypeface(String assetPath) {
         synchronized (typefaceCache) {
             if (!typefaceCache.containsKey(assetPath)) {
                 try {
                     Typeface t;
-                    boolean isMono = assetPath.contains("rmono");
-                    java.io.File userFont = getUserFontFile();
-                    boolean useUserFont = !isMono && isUserFontEnabled() && userFont.exists() && userFont.length() > 0;
-                    String realPath = isMono ? assetPath : TYPEFACE_CUSTOM;
                     if (Build.VERSION.SDK_INT >= 26) {
-                        Typeface.Builder builder = useUserFont
-                                ? new Typeface.Builder(userFont)
-                                : new Typeface.Builder(ApplicationLoader.applicationContext.getAssets(), realPath);
+                        Typeface.Builder builder = new Typeface.Builder(ApplicationLoader.applicationContext.getAssets(), assetPath);
                         if (assetPath.contains("rextrabold")) {
                             builder.setWeight(800);
                         }
@@ -2434,9 +2407,7 @@ public class AndroidUtilities {
                         }
                         t = builder.build();
                     } else {
-                        t = useUserFont
-                                ? Typeface.createFromFile(userFont)
-                                : Typeface.createFromAsset(ApplicationLoader.applicationContext.getAssets(), realPath);
+                        t = Typeface.createFromAsset(ApplicationLoader.applicationContext.getAssets(), assetPath);
                     }
                     typefaceCache.put(assetPath, t);
                 } catch (Exception e) {
