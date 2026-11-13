@@ -19,16 +19,6 @@ import android.app.TimePickerDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
-import android.database.Cursor;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
-import android.provider.OpenableColumns;
-import android.util.TypedValue;
-import android.widget.Toast;
-import java.io.IOException;
-import java.io.InputStream;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
@@ -62,6 +52,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLoader;
@@ -77,13 +68,14 @@ import org.telegram.messenger.time.SunDate;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.SimpleActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.EmojiThemes;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeColors;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.AppIconsSelectorCell;
@@ -115,17 +107,21 @@ import org.telegram.ui.Components.SimpleThemeDescription;
 import org.telegram.ui.Components.SwipeGestureSettingsView;
 import org.telegram.ui.Components.TextHelper;
 import org.telegram.ui.Components.ThemeEditorView;
+import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
 import org.telegram.ui.web.SearchEngine;
 import org.telegram.ui.web.WebBrowserSettings;
+import org.telegram.utils.glass.BaseFragmentSimpleGlass;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -245,10 +241,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     @Keep
     private int appIconSelectorRow;
     private int appIconShadowRow;
-    private int fontHeaderRow;
-    private int fontSelectorRow;
-    private int fontInfoRow;
-    private final static int REQUEST_PICK_FONT = 7701;
 
     private int rowCount;
 
@@ -309,10 +301,11 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         void onSizeChanged();
     }
 
-    private class TextSizeCell extends FrameLayout {
+    private class TextSizeCell extends FrameLayout implements Theme.Colorable {
 
         private ThemePreviewMessagesCell messagesCell;
         private SeekBarView sizeBar;
+        private TextCheckCell compactModeCell;
         private int startFontSize = 12;
         private int endFontSize = 30;
 
@@ -353,11 +346,32 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             sizeBar.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             addView(sizeBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.LEFT | Gravity.TOP, 5, 5, 39, 0));
 
+            final boolean showCompactMode = BuildVars.DEBUG_PRIVATE_VERSION;
+            compactModeCell = new TextCheckCell(context);
+            compactModeCell.setBackground(Theme.getSelectorDrawable(false));
+            compactModeCell.setTextAndCheck(getString(R.string.CompactMode), SharedConfig.compactMode, false);
+            compactModeCell.setOnClickListener(v -> {
+                SharedConfig.toggleCompactMode();
+                Theme.applyChatTheme(false, false);
+                compactModeCell.setChecked(SharedConfig.compactMode);
+                for (ChatMessageCell cell : messagesCell.getCells()) {
+                    cell.getMessageObject().resetLayout();
+                    cell.forceResetMessageObject();
+                    cell.requestLayout();
+                }
+                messagesCell.invalidate();
+                // e.g. the tablet background follows compact mode
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.didSetNewWallpapper);
+            });
+            if (showCompactMode) {
+                addView(compactModeCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.LEFT | Gravity.TOP, 0, 48, 0, 0));
+            }
+
             messagesCell = new ThemePreviewMessagesCell(context, parentLayout, 0);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 messagesCell.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             }
-            addView(messagesCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 53, 0, 0));
+            addView(messagesCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, 53 + (showCompactMode ? 50 : 0), 0, 0));
         }
 
         @Override
@@ -393,9 +407,33 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         public boolean performAccessibilityAction(int action, Bundle arguments) {
             return super.performAccessibilityAction(action, arguments) || sizeBar.getSeekBarAccessibilityDelegate().performAccessibilityActionInternal(this, action, arguments);
         }
+
+        private int themedOuterColor;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (sizeBar == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    sizeBar.setOuterColor(color);
+                }
+                invalidate();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
+        }
     }
 
-    private class BubbleRadiusCell extends FrameLayout {
+    private class BubbleRadiusCell extends FrameLayout implements Theme.Colorable {
 
         private SeekBarView sizeBar;
         private int startRadius = 0;
@@ -465,6 +503,61 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         @Override
         public boolean performAccessibilityAction(int action, Bundle arguments) {
             return super.performAccessibilityAction(action, arguments) || sizeBar.getSeekBarAccessibilityDelegate().performAccessibilityActionInternal(this, action, arguments);
+        }
+
+        private int themedOuterColor;
+
+        @Override
+        public void updateColors() {
+            try {
+                if (sizeBar == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    sizeBar.setOuterColor(color);
+                }
+                invalidate();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
+        }
+    }
+
+    private static class ThemedBrightnessControlCell extends BrightnessControlCell implements Theme.Colorable {
+
+        private int themedOuterColor;
+
+        public ThemedBrightnessControlCell(Context context, int type) {
+            super(context, type);
+        }
+
+        @Override
+        public void updateColors() {
+            try {
+                if (seekBarView == null) {
+                    return;
+                }
+                final int color = Theme.getColor(Theme.key_player_progress);
+                if (color != themedOuterColor) {
+                    themedOuterColor = color;
+                    seekBarView.setOuterColor(color);
+                    seekBarView.invalidate();
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        }
+
+        @Override
+        public void addColorKeys(HashSet<Integer> colors) {
+            colors.add(Theme.key_player_progress);
         }
     }
 
@@ -623,9 +716,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         appIconHeaderRow = -1;
         appIconSelectorRow = -1;
         appIconShadowRow = -1;
-        fontHeaderRow = -1;
-        fontSelectorRow = -1;
-        fontInfoRow = -1;
         lastShadowRow = -1;
 
         defaultThemes.clear();
@@ -675,9 +765,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             backgroundRow = rowCount++;
             changeUserColor = rowCount++;
             newThemeInfoRow = rowCount++;
-            fontHeaderRow = rowCount++;
-            fontSelectorRow = rowCount++;
-            fontInfoRow = rowCount++;
             themeHeaderRow = rowCount++;
 
             themeListRow2 = rowCount++;
@@ -690,6 +777,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             chatListHeaderRow = rowCount++;
             chatListRow = rowCount++;
             chatListInfoRow = rowCount++;
+
+            appIconHeaderRow = rowCount++;
+            appIconSelectorRow = rowCount++;
+            appIconShadowRow = rowCount++;
 
             swipeGestureHeaderRow = rowCount++;
             swipeGestureRow = rowCount++;
@@ -714,6 +805,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
             otherHeaderRow = rowCount++;
             directShareRow = rowCount++;
+            TL_account.contentSettings contentSettings = getMessagesController().getContentSettings();
+            if (contentSettings != null && contentSettings.sensitive_can_change) {
+                sensitiveContentRow = rowCount++;
+            }
             sendByEnterRow = rowCount++;
             distanceRow = rowCount++;
             otherSectionRow = rowCount++;
@@ -844,19 +939,19 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public boolean onFragmentCreate() {
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.locationPermissionGranted);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetNewWallpapper);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.themeListUpdated);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.themeAccentListUpdated);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.needShareTheme);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.needSetDayNightTheme);
-        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiPreviewThemesChanged);
-        getNotificationCenter().addObserver(this, NotificationCenter.appConfigUpdated);
-        getNotificationCenter().addObserver(this, NotificationCenter.contentSettingsLoaded);
-        getNotificationCenter().addObserver(this, NotificationCenter.themeUploadedToServer);
-        getNotificationCenter().addObserver(this, NotificationCenter.themeUploadError);
-        getNotificationCenter().addObserver(this, NotificationCenter.webBrowserSettingsUpdate);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.locationPermissionGranted);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.didSetNewWallpapper);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.themeListUpdated);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.themeAccentListUpdated);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.needShareTheme);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.needSetDayNightTheme);
+        NotificationCenter.getGlobalInstance().addWeakObserver(this, NotificationCenter.emojiPreviewThemesChanged);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.appConfigUpdated);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.contentSettingsLoaded);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.themeUploadedToServer);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.themeUploadError);
+        getNotificationCenter().addWeakObserver(this, NotificationCenter.webBrowserSettingsUpdate);
         if (currentType == THEME_TYPE_BASIC) {
             Theme.loadRemoteThemes(currentAccount, true);
             Theme.checkCurrentRemoteTheme(true);
@@ -947,14 +1042,19 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     }
 
     @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
+
+    @Override
     public View createView(Context context) {
+        setHasOwnBackground(true);
         lastIsDarkTheme = !Theme.isCurrentThemeDay();
 
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(false);
+        simpleActionBar.setBackButtonImage(R.drawable.ic_ab_back);
         if (currentType == THEME_TYPE_THEMES_BROWSER) {
-            actionBar.setTitle(getString("BrowseThemes", R.string.BrowseThemes));
-            ActionBarMenu menu = actionBar.createMenu();
+            simpleActionBar.setTitle(getString("BrowseThemes", R.string.BrowseThemes));
+            SimpleActionBarMenu menu = simpleActionBar.createMenu();
             sunDrawable = new RLottieDrawable(R.raw.sun, dp(28), dp(28), true, null);
             if (lastIsDarkTheme) {
                 sunDrawable.setCurrentFrame(sunDrawable.getFramesCount() - 1);
@@ -964,8 +1064,8 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             sunDrawable.setPlayInDirectionOfCustomEndFrame(true);
             menuItem = menu.addItem(day_night_switch, sunDrawable);
         } else if (currentType == THEME_TYPE_BASIC) {
-            actionBar.setTitle(getString("ChatSettings", R.string.ChatSettings));
-            ActionBarMenu menu = actionBar.createMenu();
+            simpleActionBar.setTitle(getString("ChatSettings", R.string.ChatSettings));
+            SimpleActionBarMenu menu = simpleActionBar.createMenu();
             menuItem = menu.addItem(0, R.drawable.ic_ab_other);
             menuItem.setContentDescription(getString("AccDescrMoreOptions", R.string.AccDescrMoreOptions));
             menuItem.addSubItem(share_theme, R.drawable.msg_share, getString("ShareTheme", R.string.ShareTheme));
@@ -985,13 +1085,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 });
             }
         } else {
-            actionBar.setTitle(getString(R.string.AutoNightTheme));
+            simpleActionBar.setTitle(getString(R.string.AutoNightTheme));
         }
         if (parentLayout != null && parentLayout.isRightLayout()) {
-            actionBar.setBackButtonImage(R.drawable.ic_ab_close);
+            simpleActionBar.setBackButtonImage(R.drawable.ic_ab_close);
         }
 
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -1047,7 +1147,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                 themesHorizontalListCell.selectTheme(themeInfo);
                                 themesHorizontalListCell.smoothScrollToPosition(0);
                             } else if (themeInfo.currentAccentId != Theme.DEFALT_THEME_ACCENT_ID) {
-                                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, currentType == THEME_TYPE_NIGHT, null, Theme.DEFALT_THEME_ACCENT_ID);
+                                Theme.switchThemeWithReveal(currentTheme, currentType == THEME_TYPE_NIGHT, Theme.DEFALT_THEME_ACCENT_ID, null);
                                 listAdapter.notifyItemChanged(themeAccentListRow);
                             } else {
                                 Theme.reloadWallpaper(true);
@@ -1059,7 +1159,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     showDialog(alertDialog);
                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                     }
                 } else if (id == day_night_switch) {
                     SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("themeconfig", Activity.MODE_PRIVATE);
@@ -1103,17 +1203,16 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         listAdapter = new ListAdapter(context);
 
         FrameLayout frameLayout = new FrameLayout(context);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         fragmentView = frameLayout;
 
         listView = new RecyclerListView(context);
         listView.setSections();
+        listView.setSectionsDrawBackground(true);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
         listView.setAdapter(listAdapter);
         ((DefaultItemAnimator) listView.getItemAnimator()).setDelayAnimations(false);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        actionBar.setAdaptiveBackground(listView);
         listView.setOnItemClickListener((view, position, x, y) -> {
             if (position == enableAnimationsRow) {
                 SharedPreferences preferences = MessagesController.getGlobalMainSettings();
@@ -1193,7 +1292,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     cell.setPadding(dp(4), 0, dp(4), 0);
                     cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                     cell.setTextAndValue(items[index], index == SharedConfig.distanceSystemType);
-                    cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                    ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                     linearLayout.addView(cell);
                     cell.setOnClickListener(v -> {
                         SharedConfig.setDistanceSystemType(index);
@@ -1234,7 +1333,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     cell.setPadding(dp(4), 0, dp(4), 0);
                     cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                     cell.setTextAndValue(items[index], index == SharedConfig.searchEngineType);
-                    cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                    ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                     linearLayout.addView(cell);
                     cell.setOnClickListener(v -> {
                         SharedConfig.setSearchEngineType(index);
@@ -1267,7 +1366,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 cell.setPadding(dp(4), 0, dp(4), 0);
                 cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                 cell.setTextAndValue(getString(R.string.MicrophoneForVoiceMessagesBuiltIn), !SharedConfig.recordViaSco);
-                cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                 linearLayout.addView(cell);
                 cell.setOnClickListener(v -> {
                     SharedConfig.recordViaSco = false;
@@ -1285,7 +1384,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 cell.setPadding(dp(4), 0, dp(4), 0);
                 cell.setCheckColor(Theme.getColor(Theme.key_radioBackground), Theme.getColor(Theme.key_dialogRadioBackgroundChecked));
                 cell.setTextAndText2AndValue(getString(R.string.MicrophoneForVoiceMessagesScoIfConnected), getString(R.string.MicrophoneForVoiceMessagesScoHint), SharedConfig.recordViaSco);
-                cell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+                ThemeBind.selectorBackground(cell, Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL), null, ThemeBind.of(Theme.key_listSelector));
                 linearLayout.addView(cell);
                 cell.setOnClickListener(v -> {
                     PermissionRequest.ensurePermission(R.raw.permission_request_microphone, R.string.PermissionNoBluetoothWithHint, Manifest.permission.BLUETOOTH_CONNECT, granted -> {
@@ -1524,14 +1623,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
     }
 
     @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
     }
 
     @Override
-    public void onInsets(int left, int top, int right, int bottom) {
-        listView.setPadding(0, 0, 0, bottom);
-        listView.setClipToPadding(false);
+    public boolean isSupportEdgeToEdge() {
+        return true;
     }
 
     private void editTheme() {
@@ -1589,7 +1687,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         b.setCustomView(layout);
 
         FrameLayout topView = new FrameLayout(context);
-        topView.setBackground(Theme.createCircleDrawable(dp(80), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)));
+        ThemeBind.fillBackground(topView, Theme.createCircleDrawable(dp(80), Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider)), ThemeBind.of(Theme.key_featuredStickers_addButton), resourcesProvider);
         ImageView imageView = new ImageView(context);
         imageView.setScaleType(ImageView.ScaleType.CENTER);
         imageView.setImageResource(R.drawable.filled_verify_age);
@@ -1713,7 +1811,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 LocationManager lm = (LocationManager) ApplicationLoader.applicationContext.getSystemService(Context.LOCATION_SERVICE);
                 if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                     AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-                    builder.setTopAnimation(R.raw.permission_request_location, AlertsCreator.PERMISSIONS_REQUEST_TOP_ICON_SIZE, false, Theme.getColor(Theme.key_dialogTopBackground));
+                    builder.setTopAnimation(R.raw.permission_request_location, AlertsCreator.PERMISSIONS_REQUEST_TOP_ICON_SIZE, false, Theme.getColor(Theme.key_dialogTopBackground)); builder.setTopBackgroundColorKey(Theme.key_dialogTopBackground, null);
                     builder.setMessage(getString("GpsDisabledAlertText", R.string.GpsDisabledAlertText));
                     builder.setPositiveButton(getString("ConnectingToProxyEnable", R.string.ConnectingToProxyEnable), (dialog, id) -> {
                         if (getParentActivity() == null) {
@@ -2076,7 +2174,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         private final static int TYPE_SAVE_TO_GALLERY = 19;
         private final static int TYPE_APP_ICON = 20;
         private final static int TYPE_CHOOSE_COLOR = 21;
-        private final static int TYPE_FONT_SELECTOR = 22;
 
         private Context mContext;
         private boolean first = true;
@@ -2226,7 +2323,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     showDialog(alertDialog);
                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                     }
                 }
             });
@@ -2258,7 +2355,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     view = new HeaderCell(mContext);
                     break;
                 case TYPE_BRIGHTNESS:
-                    view = new BrightnessControlCell(mContext, BrightnessControlCell.TYPE_DEFAULT) {
+                    view = new ThemedBrightnessControlCell(mContext, BrightnessControlCell.TYPE_DEFAULT) {
                         @Override
                         protected void didChangedValue(float value) {
                             int oldValue = (int) (Theme.autoNightBrighnessThreshold * 100);
@@ -2342,7 +2439,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                             }
 
                             if (currentTheme.currentAccentId != accent.id) {
-                                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, currentType == THEME_TYPE_NIGHT, null, accent.id);
+                                Theme.switchThemeWithReveal(currentTheme, currentType == THEME_TYPE_NIGHT, accent.id, view1);
                                 EmojiThemes.saveCustomTheme(currentTheme, accent.id);
                                 Theme.turnOffAutoNight(ThemeActivity.this);
                             } else {
@@ -2412,7 +2509,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                     builder1.setPositiveButton(getString("Delete", R.string.Delete), (dialogInterface, i) -> {
                                         if (Theme.deleteThemeAccent(accentsAdapter.currentTheme, accent, true)) {
                                             Theme.refreshThemeColors();
-                                            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, Theme.getActiveTheme(), currentType == THEME_TYPE_NIGHT, null, -1);
+                                            Theme.switchThemeWithReveal(Theme.getActiveTheme(), currentType == THEME_TYPE_NIGHT, -1, null);
                                         }
                                     });
                                     builder1.setNegativeButton(getString("Cancel", R.string.Cancel), null);
@@ -2420,7 +2517,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                     showDialog(alertDialog);
                                     TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
                                     if (button != null) {
-                                        button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+                                        ThemeBind.textColor(button, Theme.key_text_RedBold);
                                     }
                                 }
                             });
@@ -2475,9 +2572,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     break;
                 case TYPE_CHOOSE_COLOR:
                     view = new PeerColorActivity.ChangeNameColorCell(currentAccount, 0, mContext, getResourceProvider());
-                    break;
-                case TYPE_FONT_SELECTOR:
-                    view = new FontSelectorCell(mContext);
                     break;
             }
             return new RecyclerListView.Holder(view);
@@ -2602,8 +2696,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         headerCell.setText(getString("OtherSettings", R.string.OtherSettings));
                     } else if (position == mediaSoundHeaderRow) {
                         headerCell.setText(getString("MediaAndSoundSettings", R.string.MediaAndSoundSettings));
-                    } else if (position == fontHeaderRow) {
-                        headerCell.setText("فونت برنامه");
                     }
                     break;
                 }
@@ -2733,11 +2825,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 case TYPE_CHOOSE_COLOR: {
                     PeerColorActivity.ChangeNameColorCell cell = (PeerColorActivity.ChangeNameColorCell) holder.itemView;
                     cell.set(getUserConfig().getCurrentUser());
-                    break;
-                }
-                case TYPE_FONT_SELECTOR: {
-                    ((FontSelectorCell) holder.itemView).update();
-                    break;
                 }
             }
         }
@@ -2752,13 +2839,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
 
         @Override
         public int getItemViewType(int position) {
-            if (position == fontSelectorRow) {
-                return TYPE_FONT_SELECTOR;
-            } else if (position == fontHeaderRow) {
-                return TYPE_HEADER;
-            } else if (position == fontInfoRow) {
-                return TYPE_SHADOW;
-            }
             if (position == scheduleFromRow || position == distanceRow ||
                     position == scheduleToRow || position == scheduleUpdateLocationRow ||
                     position == contactsReimportRow || position == contactsSortRow ||
@@ -2817,365 +2897,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
-
-    // ======================= Custom font feature =======================
-
-    private SharedPreferences fontPrefs() {
-        return ApplicationLoader.applicationContext.getSharedPreferences("user_font_prefs", Context.MODE_PRIVATE);
-    }
-
-    private boolean userFontExists() {
-        File f = AndroidUtilities.getUserFontFile();
-        return f.exists() && f.length() > 0;
-    }
-
-    private void refreshFontCell() {
-        if (listAdapter != null && fontSelectorRow >= 0) {
-            listAdapter.notifyItemChanged(fontSelectorRow);
-        }
-    }
-
-    private void onSelectDefaultFont() {
-        if (!AndroidUtilities.isUserFontEnabled()) {
-            return;
-        }
-        fontPrefs().edit().putBoolean("enabled", false).apply();
-        AndroidUtilities.resetTypefaceCache();
-        refreshFontCell();
-        showFontRestartDialog();
-    }
-
-    private void onSelectUserFont() {
-        if (!userFontExists()) {
-            openFontPicker();
-            return;
-        }
-        if (AndroidUtilities.isUserFontEnabled()) {
-            return;
-        }
-        fontPrefs().edit().putBoolean("enabled", true).apply();
-        AndroidUtilities.resetTypefaceCache();
-        refreshFontCell();
-        showFontRestartDialog();
-    }
-
-    private void onDeleteUserFont() {
-        try {
-            AndroidUtilities.getUserFontFile().delete();
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
-        fontPrefs().edit().putBoolean("enabled", false).remove("name").apply();
-        AndroidUtilities.resetTypefaceCache();
-        refreshFontCell();
-        showFontRestartDialog();
-    }
-
-    private void openFontPicker() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("*/*");
-            startActivityForResult(intent, REQUEST_PICK_FONT);
-        } catch (Throwable e) {
-            FileLog.e(e);
-            Toast.makeText(ApplicationLoader.applicationContext, "فایل‌منیجر پیدا نشد", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    @Override
-    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
-        super.onActivityResultFragment(requestCode, resultCode, data);
-        if (requestCode == REQUEST_PICK_FONT && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
-            importFont(data.getData());
-        }
-    }
-
-    private static boolean looksLikeFont(File f) {
-        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
-            byte[] h = new byte[4];
-            if (in.read(h) != 4) {
-                return false;
-            }
-            String tag = new String(h, "ISO-8859-1");
-            return (h[0] == 0 && h[1] == 1 && h[2] == 0 && h[3] == 0) || "true".equals(tag) || "OTTO".equals(tag) || "ttcf".equals(tag);
-        } catch (Throwable e) {
-            return false;
-        }
-    }
-
-    private void importFont(Uri uri) {
-        Activity act = getParentActivity();
-        if (act == null) {
-            return;
-        }
-        File tmp = new File(ApplicationLoader.applicationContext.getCacheDir(), "user_font_tmp");
-        String name = null;
-        try (InputStream in = act.getContentResolver().openInputStream(uri);
-             FileOutputStream out = new FileOutputStream(tmp)) {
-            if (in == null) {
-                throw new IOException("no stream");
-            }
-            byte[] buf = new byte[16 * 1024];
-            int n;
-            long total = 0;
-            while ((n = in.read(buf)) > 0) {
-                out.write(buf, 0, n);
-                total += n;
-                if (total > 30L * 1024 * 1024) {
-                    throw new IOException("too big");
-                }
-            }
-        } catch (Throwable e) {
-            FileLog.e(e);
-            tmp.delete();
-            Toast.makeText(ApplicationLoader.applicationContext, "خواندن فایل ناموفق بود", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (!looksLikeFont(tmp)) {
-            tmp.delete();
-            Toast.makeText(ApplicationLoader.applicationContext, "این فایل یک فونت معتبر (TTF یا OTF) نیست", Toast.LENGTH_LONG).show();
-            return;
-        }
-        try (Cursor c = act.getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                name = c.getString(0);
-            }
-        } catch (Throwable ignore) {
-        }
-        try {
-            File dest = AndroidUtilities.getUserFontFile();
-            if (dest.exists()) {
-                dest.delete();
-            }
-            if (!tmp.renameTo(dest)) {
-                throw new IOException("rename failed");
-            }
-        } catch (Throwable e) {
-            FileLog.e(e);
-            Toast.makeText(ApplicationLoader.applicationContext, "ذخیره فونت ناموفق بود", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        fontPrefs().edit().putBoolean("enabled", true).putString("name", name != null ? name : "user_font.ttf").apply();
-        AndroidUtilities.resetTypefaceCache();
-        refreshFontCell();
-        showFontRestartDialog();
-    }
-
-    private void showFontRestartDialog() {
-        Activity act = getParentActivity();
-        if (act == null) {
-            return;
-        }
-        AlertDialog.Builder b = new AlertDialog.Builder(act);
-        b.setTitle("اعمال فونت");
-        b.setMessage("برای اعمال فونت روی تمام بخش‌های برنامه، لازم است برنامه دوباره راه‌اندازی شود.");
-        b.setPositiveButton("راه‌اندازی مجدد", (d, w) -> restartApp());
-        b.setNegativeButton("بعداً", null);
-        showDialog(b.create());
-    }
-
-    private void restartApp() {
-        try {
-            Context ctx = ApplicationLoader.applicationContext;
-            Intent i = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
-            if (i == null) {
-                return;
-            }
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            PendingIntent pi = PendingIntent.getActivity(ctx, 7702, i, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
-            am.set(AlarmManager.RTC, System.currentTimeMillis() + 400, pi);
-            System.exit(0);
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
-    }
-
-    private static GradientDrawable roundBg(int fill, int radiusDp, int strokeDp, int strokeColor) {
-        GradientDrawable gd = new GradientDrawable();
-        gd.setCornerRadius(dp(radiusDp));
-        gd.setColor(fill);
-        if (strokeDp > 0) {
-            gd.setStroke(dp(strokeDp), strokeColor);
-        }
-        return gd;
-    }
-
-    private static int withAlpha(int color, int alpha) {
-        return (color & 0x00FFFFFF) | (alpha << 24);
-    }
-
-    private class FontCard extends FrameLayout {
-        final TextView aa, title, sub, check;
-
-        FontCard(Context c) {
-            super(c);
-            LinearLayout content = new LinearLayout(c);
-            content.setOrientation(LinearLayout.VERTICAL);
-            content.setGravity(Gravity.CENTER_HORIZONTAL);
-
-            aa = new TextView(c);
-            aa.setText("Aa");
-            aa.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 38);
-            aa.setGravity(Gravity.CENTER);
-            content.addView(aa, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-            title = new TextView(c);
-            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-            title.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            tp.topMargin = dp(6);
-            content.addView(title, tp);
-
-            sub = new TextView(c);
-            sub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-            sub.setGravity(Gravity.CENTER);
-            sub.setSingleLine(true);
-            sub.setEllipsize(TextUtils.TruncateAt.MIDDLE);
-            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            sp.topMargin = dp(2);
-            content.addView(sub, sp);
-
-            FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-            cp.setMargins(dp(8), dp(22), dp(8), dp(16));
-            addView(content, cp);
-
-            check = new TextView(c);
-            check.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            check.setGravity(Gravity.CENTER);
-            FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP | Gravity.LEFT);
-            kp.setMargins(dp(10), dp(10), 0, 0);
-            addView(check, kp);
-        }
-
-        void bind(Typeface tf, String titleText, String subText, boolean selected) {
-            int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
-            int onAccent = Theme.getColor(Theme.key_featuredStickers_buttonText);
-            int divider = Theme.getColor(Theme.key_divider);
-            int gray = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
-            int black = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
-            setBackground(selected
-                    ? roundBg(withAlpha(accent, 0x22), 16, 2, accent)
-                    : roundBg(Theme.getColor(Theme.key_windowBackgroundGray), 16, 1, divider));
-            if (tf != null) {
-                aa.setTypeface(tf);
-            }
-            aa.setTextColor(selected ? accent : black);
-            title.setText(titleText);
-            title.setTextColor(black);
-            sub.setText(subText);
-            sub.setTextColor(gray);
-            if (selected) {
-                check.setText("✓");
-                check.setTextColor(onAccent);
-                check.setBackground(roundBg(accent, 11, 0, 0));
-            } else {
-                check.setText("");
-                check.setBackground(roundBg(0x00000000, 11, 1, divider));
-            }
-        }
-    }
-
-    private class FontSelectorCell extends LinearLayout {
-        private final FontCard defaultCard, userCard;
-        private final TextView previewText, addButton, deleteButton;
-        private final LinearLayout previewBox;
-        private Typeface defaultTf;
-
-        FontSelectorCell(Context c) {
-            super(c);
-            setOrientation(VERTICAL);
-            setPadding(dp(16), dp(8), dp(16), dp(16));
-
-            LinearLayout cards = new LinearLayout(c);
-            cards.setOrientation(HORIZONTAL);
-            defaultCard = new FontCard(c);
-            userCard = new FontCard(c);
-            LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            lp1.rightMargin = dp(6);
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            lp2.leftMargin = dp(6);
-            cards.addView(defaultCard, lp1);
-            cards.addView(userCard, lp2);
-            addView(cards, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-            defaultCard.setOnClickListener(v -> onSelectDefaultFont());
-            userCard.setOnClickListener(v -> onSelectUserFont());
-
-            previewBox = new LinearLayout(c);
-            previewBox.setOrientation(VERTICAL);
-            previewBox.setPadding(dp(16), dp(14), dp(16), dp(14));
-            previewText = new TextView(c);
-            previewText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-            previewText.setLineSpacing(dp(4), 1f);
-            previewText.setText("سلام! 👋 این پیش‌نمایش فونت انتخابی شماست.\nThe quick brown fox jumps over the lazy dog\n۰۱۲۳۴۵۶۷۸۹ 0123456789");
-            previewBox.addView(previewText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            LinearLayout.LayoutParams pb = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            pb.topMargin = dp(12);
-            addView(previewBox, pb);
-
-            addButton = new TextView(c);
-            addButton.setGravity(Gravity.CENTER);
-            addButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-            addButton.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-            addButton.setOnClickListener(v -> openFontPicker());
-            LinearLayout.LayoutParams ab = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
-            ab.topMargin = dp(12);
-            addView(addButton, ab);
-
-            deleteButton = new TextView(c);
-            deleteButton.setGravity(Gravity.CENTER);
-            deleteButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            deleteButton.setText("حذف فونت من");
-            deleteButton.setOnClickListener(v -> onDeleteUserFont());
-            LinearLayout.LayoutParams db = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
-            db.topMargin = dp(4);
-            addView(deleteButton, db);
-
-            try {
-                defaultTf = Typeface.createFromAsset(c.getAssets(), AndroidUtilities.TYPEFACE_CUSTOM);
-            } catch (Throwable e) {
-                defaultTf = Typeface.DEFAULT;
-            }
-        }
-
-        void update() {
-            boolean hasUser = userFontExists();
-            boolean userActive = hasUser && AndroidUtilities.isUserFontEnabled();
-            int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
-            int onAccent = Theme.getColor(Theme.key_featuredStickers_buttonText);
-
-            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-
-            Typeface userTf = null;
-            if (hasUser) {
-                try {
-                    userTf = Typeface.createFromFile(AndroidUtilities.getUserFontFile());
-                } catch (Throwable ignore) {
-                }
-            }
-            String userName = fontPrefs().getString("name", "user_font.ttf");
-
-            defaultCard.bind(defaultTf, "فونت اصلی برنامه", "پیش‌فرض", !userActive);
-            userCard.bind(userTf != null ? userTf : defaultTf, "فونت من", hasUser ? userName : "هنوز اضافه نشده", userActive);
-
-            previewBox.setBackground(roundBg(Theme.getColor(Theme.key_windowBackgroundGray), 14, 0, 0));
-            previewText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-            previewText.setTypeface(userActive && userTf != null ? userTf : defaultTf);
-
-            addButton.setText(hasUser ? "＋  تغییر فونت من" : "＋  افزودن فونت از حافظه");
-            addButton.setTextColor(onAccent);
-            addButton.setBackground(roundBg(accent, 14, 0, 0));
-
-            deleteButton.setVisibility(hasUser ? VISIBLE : GONE);
-            deleteButton.setTextColor(Theme.getColor(Theme.key_text_RedBold));
-        }
-    }
-
-    // ===================== end of custom font feature =====================
-
     private static abstract class TintRecyclerListView extends RecyclerListView {
         TintRecyclerListView(Context context) {
             super(context);
@@ -3187,74 +2908,30 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextSettingsCell.class, TextCheckCell.class, HeaderCell.class, BrightnessControlCell.class, ThemeTypeCell.class, TextSizeCell.class, BubbleRadiusCell.class, ChatListCell.class, NotificationsCheckCell.class, ThemesHorizontalListCell.class, TintRecyclerListView.class, TextCell.class, PeerColorActivity.ChangeNameColorCell.class, SwipeGestureSettingsView.class, DefaultThemesPreviewCell.class, AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
 
-//        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUBACKGROUND, null, null, null, null, Theme.key_actionBarDefaultSubmenuBackground));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM, null, null, null, null, Theme.key_actionBarDefaultSubmenuItem));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM | ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarDefaultSubmenuItemIcon));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{HeaderCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueHeader));
 
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueText4));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteBlueText4));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{BrightnessControlCell.class}, new String[]{"leftImageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{BrightnessControlCell.class}, new String[]{"rightImageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{BrightnessControlCell.class}, new String[]{"seekBarView"}, null, null, null, Theme.key_player_progressBackground));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{BrightnessControlCell.class}, new String[]{"seekBarView"}, null, null, null, Theme.key_player_progress));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ThemeTypeCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ThemeTypeCell.class}, new String[]{"checkImage"}, null, null, null, Theme.key_featuredStickers_addedIcon));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{TextSizeCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progress));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progressBackground));
 
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_PROGRESSBAR, new Class[]{BubbleRadiusCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progress));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{BubbleRadiusCell.class}, new String[]{"sizeBar"}, null, null, null, Theme.key_player_progressBackground));
 
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ChatListCell.class}, null, null, null, Theme.key_radioBackground));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ChatListCell.class}, null, null, null, Theme.key_radioBackgroundChecked));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText2));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{NotificationsCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInDrawable, Theme.chat_msgInMediaDrawable}, null, Theme.key_chat_inBubble));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInSelectedDrawable, Theme.chat_msgInMediaSelectedDrawable}, null, Theme.key_chat_inBubbleSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, Theme.chat_msgInDrawable.getShadowDrawables(), null, Theme.key_chat_inBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, Theme.chat_msgInMediaDrawable.getShadowDrawables(), null, Theme.key_chat_inBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubble));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient1));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient2));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleGradient3));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutSelectedDrawable, Theme.chat_msgOutMediaSelectedDrawable}, null, Theme.key_chat_outBubbleSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutDrawable, Theme.chat_msgOutMediaDrawable}, null, Theme.key_chat_outBubbleShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgInDrawable, Theme.chat_msgInMediaDrawable}, null, Theme.key_chat_inBubbleShadow));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_messageTextIn));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_messageTextOut));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckDrawable}, null, Theme.key_chat_outSentCheck));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckSelectedDrawable}, null, Theme.key_chat_outSentCheckSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckReadDrawable, Theme.chat_msgOutHalfCheckDrawable}, null, Theme.key_chat_outSentCheckRead));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgOutCheckReadSelectedDrawable, Theme.chat_msgOutHalfCheckSelectedDrawable}, null, Theme.key_chat_outSentCheckReadSelected));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, new Drawable[]{Theme.chat_msgMediaCheckDrawable, Theme.chat_msgMediaHalfCheckDrawable}, null, Theme.key_chat_mediaSentCheck));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inReplyLine));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_outReplyLine));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inReplyNameText));
@@ -3268,8 +2945,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_inTimeSelectedText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSizeCell.class}, null, null, null, Theme.key_chat_outTimeSelectedText));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteHintText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{AppIconsSelectorCell.class}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
         themeDescriptions.addAll(SimpleThemeDescription.createThemeDescriptions(() -> {
@@ -3330,5 +3005,41 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 }
             }
         }
+    }
+
+    /** theme editor: colors this page shows (former ThemeDescription keys) */
+    @Override
+    public void addThemeColorKeys(HashSet<Integer> keys) {
+        super.addThemeColorKeys(keys);
+        keys.add(Theme.key_windowBackgroundWhiteBlackText);
+        keys.add(Theme.key_windowBackgroundWhite);
+        keys.add(Theme.key_chat_mediaSentCheck);
+        keys.add(Theme.key_chat_outSentCheckReadSelected);
+        keys.add(Theme.key_chat_outSentCheckRead);
+        keys.add(Theme.key_chat_outSentCheckSelected);
+        keys.add(Theme.key_chat_outSentCheck);
+        keys.add(Theme.key_chat_messageTextOut);
+        keys.add(Theme.key_chat_inBubbleShadow);
+        keys.add(Theme.key_chat_outBubbleShadow);
+        keys.add(Theme.key_chat_outBubbleSelected);
+        keys.add(Theme.key_chat_outBubbleGradient3);
+        keys.add(Theme.key_chat_outBubbleGradient2);
+        keys.add(Theme.key_chat_outBubbleGradient1);
+        keys.add(Theme.key_chat_outBubble);
+        keys.add(Theme.key_chat_inBubbleSelected);
+        keys.add(Theme.key_chat_inBubble);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText2);
+        keys.add(Theme.key_player_progressBackground);
+        keys.add(Theme.key_player_progress);
+        keys.add(Theme.key_featuredStickers_addedIcon);
+        keys.add(Theme.key_windowBackgroundWhiteGrayIcon);
+        keys.add(Theme.key_windowBackgroundWhiteBlueHeader);
+        keys.add(Theme.key_windowBackgroundWhiteValueText);
+        keys.add(Theme.key_windowBackgroundWhiteGrayText4);
+        keys.add(Theme.key_divider);
+        keys.add(Theme.key_actionBarDefaultSelector);
+        keys.add(Theme.key_actionBarDefaultTitle);
+        keys.add(Theme.key_actionBarDefaultIcon);
+        keys.add(Theme.key_actionBarDefault);
     }
 }
