@@ -26,6 +26,7 @@ idea {
 repositories {
     mavenCentral()
     google()
+    maven { url "https://maven.myket.ir" }
 }
 
 configurations {
@@ -71,6 +72,7 @@ dependencies {
     implementation 'com.stripe:stripe-android:2.0.2'
     implementation 'com.google.mlkit:language-id:17.0.6'
     implementation 'com.android.billingclient:billing:8.0.0'
+    implementation 'ir.myket:billing:2.2'
     implementation 'com.google.code.gson:gson:2.11.0'
     implementation 'com.google.guava:guava:31.1-android'
     implementation 'com.google.android.play:integrity:1.3.0'
@@ -143,6 +145,13 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 36
+
+        buildConfigField "String", "MYKET_PUBLIC_KEY", "\"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCpzJ30BkceDqp/+K0BBJj7MnSk7CTZmIW/jhUx9ZJ8GtlOjN2MTDz0KLofBjEZMaCgrZoNzfj0a14YwU8OwHKpnzTe3jysKNBouaQode9e98J2aWTVfskKaSe7noJuixmRjXJTQ/WRiJB1UjAjR/BrbhF9Rv5dmj1pfcxi0cO51QIDAQAB\""
+        manifestPlaceholders += [
+            marketApplicationId: "ir.mservices.market",
+            marketBindAddress  : "ir.mservices.market.InAppBillingService.BIND",
+            marketPermission   : "ir.mservices.market.BILLING"
+        ]
 
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
