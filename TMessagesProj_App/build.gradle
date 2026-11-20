@@ -4,6 +4,7 @@ apply plugin: 'org.telegram.build-app-plugin'
 repositories {
     mavenCentral()
     google()
+    maven { url "https://maven.myket.ir" }
 }
 
 configurations {
@@ -179,6 +180,12 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 36
+
+        manifestPlaceholders += [
+            marketApplicationId: "ir.mservices.market",
+            marketBindAddress  : "ir.mservices.market.InAppBillingService.BIND",
+            marketPermission   : "ir.mservices.market.BILLING"
+        ]
         versionName APP_VERSION_NAME
         ndkVersion "27.2.12479018"
 
