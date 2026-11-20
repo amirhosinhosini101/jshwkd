@@ -2636,8 +2636,28 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                         }
                     }, null);
                 } else if (item.object instanceof String) {
-                    Browser.openUrl(getContext(), "https://gitbin.site/GitbinStars");
-                    dismiss();
+                    Activity activity = AndroidUtilities.findActivity(getContext());
+                    if (activity == null) {
+                        activity = LaunchActivity.instance;
+                    }
+                    if (activity == null) {
+                        return;
+                    }
+                    final long boughtStars = item.longValue;
+                    org.telegram.messenger.MyketBillingController.getInstance().buyStars(activity, org.telegram.messenger.AccountInstance.getInstance(currentAccount), boughtStars, (success, error) -> {
+                        StarsController.getInstance(currentAccount).invalidateTransactions(true);
+                        BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                        if (success) {
+                            dismiss();
+                            if (lastFragment == null) return;
+                            BulletinFactory.of(lastFragment).createSimpleBulletin(R.raw.stars_topup, getString(R.string.StarsAcquired), AndroidUtilities.replaceTags(formatPluralString("StarsAcquiredInfo", (int) boughtStars))).show();
+                            if (LaunchActivity.instance != null) {
+                                LaunchActivity.instance.getFireworksOverlay().start(true);
+                            }
+                        } else if (error != null && lastFragment != null) {
+                            BulletinFactory.of(lastFragment).createSimpleBulletin(R.raw.error, LocaleController.formatString(R.string.UnknownErrorCode, error)).show();
+                        }
+                    });
                 }
             }
         }
