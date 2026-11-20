@@ -4,6 +4,7 @@ apply plugin: 'test-generator'
 apply plugin: 'org.telegram.build-app-plugin'
 
 repositories {
+    maven { url "https://maven.myket.ir" }
     mavenCentral()
     google()
 }
@@ -139,6 +140,12 @@ android {
     }
 
     defaultConfig {
+
+        manifestPlaceholders += [
+            marketApplicationId: "ir.mservices.market",
+            marketBindAddress  : "ir.mservices.market.InAppBillingService.BIND",
+            marketPermission   : "ir.mservices.market.BILLING"
+        ]
         minSdkVersion 26
         targetSdkVersion 36
         versionName APP_VERSION_NAME
