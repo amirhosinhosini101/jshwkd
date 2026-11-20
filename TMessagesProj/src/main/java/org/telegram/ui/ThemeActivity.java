@@ -2423,7 +2423,11 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 }
                 java.io.File finalFile = new java.io.File(org.telegram.messenger.FileLoader.getDirectory(4), org.telegram.messenger.FileLoader.fixFileName(shareName));
                 java.io.File currentFile = themeInfo.assetName != null ? Theme.getAssetFile(themeInfo.assetName) : new java.io.File(themeInfo.pathToFile);
-                if (!AndroidUtilities.copyFile(currentFile, finalFile)) {
+                try {
+                    if (!AndroidUtilities.copyFile(currentFile, finalFile)) {
+                        return;
+                    }
+                } catch (java.io.IOException e3) {
                     return;
                 }
                 Intent intent = new Intent("android.intent.action.SEND");
