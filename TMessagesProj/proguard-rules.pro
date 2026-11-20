@@ -54,3 +54,10 @@
 # Use -keep to explicitly keep any other classes shrinking would remove
 #-dontoptimize
 #-dontobfuscate
+
+
+# Myket Billing Client
+-keep class ir.myket.billingclient.** { *; }
+-keep interface ir.myket.billingclient.** { *; }
+-keep class com.android.vending.billing.** { *; }
+-dontwarn ir.myket.billingclient.**
