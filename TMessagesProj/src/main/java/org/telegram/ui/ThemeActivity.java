@@ -265,10 +265,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             this.sizeBar.setReportChanges(true);
             this.sizeBar.setSeparatorsCount((this.endFontSize - this.startFontSize) + 1);
             this.sizeBar.setDelegate(new SeekBarView.SeekBarViewDelegate() { // from class: org.telegram.ui.ThemeActivity.TextSizeCell.1
-                @Override // org.telegram.ui.Components.SeekBarView.SeekBarViewDelegate
-                public /* synthetic */ boolean needVisuallyDivideSteps() {
-                    return SeekBarView.SeekBarViewDelegate.CC.$default$needVisuallyDivideSteps(this);
-                }
 
                 @Override // org.telegram.ui.Components.SeekBarView.SeekBarViewDelegate
                 public void onSeekBarDrag(boolean stop, float progress) {
@@ -348,10 +344,6 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             this.sizeBar.setReportChanges(true);
             this.sizeBar.setSeparatorsCount((this.endRadius - this.startRadius) + 1);
             this.sizeBar.setDelegate(new SeekBarView.SeekBarViewDelegate() { // from class: org.telegram.ui.ThemeActivity.BubbleRadiusCell.1
-                @Override // org.telegram.ui.Components.SeekBarView.SeekBarViewDelegate
-                public /* synthetic */ boolean needVisuallyDivideSteps() {
-                    return SeekBarView.SeekBarViewDelegate.CC.$default$needVisuallyDivideSteps(this);
-                }
 
                 @Override // org.telegram.ui.Components.SeekBarView.SeekBarViewDelegate
                 public void onSeekBarDrag(boolean stop, float progress) {
@@ -1001,7 +993,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             showDialog(this.sharingProgressDialog, new DialogInterface.OnDismissListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda6
                 @Override // android.content.DialogInterface.OnDismissListener
                 public final void onDismiss(DialogInterface dialogInterface) {
-                    this.f$0.m12308lambda$didReceivedNotification$1$orgtelegramuiThemeActivity(dialogInterface);
+                    m12308lambda$didReceivedNotification$1$orgtelegramuiThemeActivity(dialogInterface);
                 }
             });
             return;
@@ -1054,7 +1046,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 getMessagesController().getContentSettings(new Utilities.Callback() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda8
                     @Override // org.telegram.messenger.Utilities.Callback
                     public final void run(Object obj) {
-                        this.f$0.m12300lambda$createView$2$orgtelegramuiThemeActivity((TL_account.contentSettings) obj);
+                        m12300lambda$createView$2$orgtelegramuiThemeActivity((TL_account.contentSettings) obj);
                     }
                 });
             }
@@ -1081,19 +1073,11 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         frameLayout.addView(this.listView, LayoutHelper.createFrame(-1, -1.0f));
         this.actionBar.setAdaptiveBackground(this.listView);
         this.listView.setOnItemClickListener(new RecyclerListView.OnItemClickListenerExtended() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda9
-            @Override // org.telegram.ui.Components.RecyclerListView.OnItemClickListenerExtended
-            public /* synthetic */ boolean hasDoubleTap(View view, int i) {
-                return RecyclerListView.OnItemClickListenerExtended.CC.$default$hasDoubleTap(this, view, i);
-            }
 
-            @Override // org.telegram.ui.Components.RecyclerListView.OnItemClickListenerExtended
-            public /* synthetic */ void onDoubleTap(View view, int i, float f, float f2) {
-                RecyclerListView.OnItemClickListenerExtended.CC.$default$onDoubleTap(this, view, i, f, f2);
-            }
 
             @Override // org.telegram.ui.Components.RecyclerListView.OnItemClickListenerExtended
             public final void onItemClick(View view, int i, float f, float f2) {
-                this.f$0.m12297lambda$createView$13$orgtelegramuiThemeActivity(context, view, i, f, f2);
+                m12297lambda$createView$13$orgtelegramuiThemeActivity(context, view, i, f, f2);
             }
         });
         if (this.currentType == 0) {
@@ -1111,7 +1095,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             AndroidUtilities.runOnUIThread(new Runnable() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda10
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m12299lambda$createView$15$orgtelegramuiThemeActivity();
+                    m12299lambda$createView$15$orgtelegramuiThemeActivity();
                 }
             }, 200L);
         }
@@ -1159,7 +1143,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     return;
                 } else {
                     ThemeActivity.this.getMessagesController().saveThemeToServer(accent.parentTheme, accent);
-                    NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needShareTheme, accent.parentTheme, accent);
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needShareTheme, accent.parentTheme, accent);
                     return;
                 }
             }
@@ -1177,7 +1161,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 builder1.setPositiveButton(LocaleController.getString(TimerBuilder.RESET, R.string.Reset), new AlertDialog.OnButtonClickListener() { // from class: org.telegram.ui.ThemeActivity$1$$ExternalSyntheticLambda0
                     @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
                     public final void onClick(AlertDialog alertDialog, int i) {
-                        this.f$0.m12313lambda$onItemClick$0$orgtelegramuiThemeActivity$1(alertDialog, i);
+                        m12313lambda$onItemClick$0$orgtelegramuiThemeActivity$1(alertDialog, i);
                     }
                 });
                 builder1.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
@@ -1218,7 +1202,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 ThemeActivity.this.menuItem.getIconView().getLocationInWindow(pos);
                 pos[0] = pos[0] + (ThemeActivity.this.menuItem.getIconView().getMeasuredWidth() / 2);
                 pos[1] = pos[1] + (ThemeActivity.this.menuItem.getIconView().getMeasuredHeight() / 2);
-                NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needSetDayNightTheme, themeInfo, false, pos, -1, Boolean.valueOf(toDark), ThemeActivity.this.menuItem.getIconView());
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, themeInfo, false, pos, -1, Boolean.valueOf(toDark), ThemeActivity.this.menuItem.getIconView());
                 ThemeActivity.this.updateRows(true);
                 Theme.turnOffAutoNight(ThemeActivity.this);
             }
@@ -1257,7 +1241,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     return;
                 }
                 if (themeInfo.currentAccentId != Theme.DEFALT_THEME_ACCENT_ID) {
-                    NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needSetDayNightTheme, currentTheme, Boolean.valueOf(ThemeActivity.this.currentType == 1), null, Integer.valueOf(Theme.DEFALT_THEME_ACCENT_ID));
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, Boolean.valueOf(ThemeActivity.this.currentType == 1), null, Integer.valueOf(Theme.DEFALT_THEME_ACCENT_ID));
                     ThemeActivity.this.listAdapter.notifyItemChanged(ThemeActivity.this.themeAccentListRow);
                 } else {
                     Theme.reloadWallpaper(true);
@@ -1347,13 +1331,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                     final Runnable set = new Runnable() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda24
                                         @Override // java.lang.Runnable
                                         public final void run() {
-                                            this.f$0.m12306lambda$createView$8$orgtelegramuiThemeActivity(view);
+                                            m12306lambda$createView$8$orgtelegramuiThemeActivity(view);
                                         }
                                     };
                                     showDialog(new AlertDialog.Builder(context, this.resourceProvider).setTitle(LocaleController.getString(R.string.ConfirmSensitiveContentTitle)).setMessage(LocaleController.getString(R.string.ConfirmSensitiveContentText)).setPositiveButton(LocaleController.getString(R.string.Confirm), new AlertDialog.OnButtonClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda1
                                         @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
                                         public final void onClick(AlertDialog alertDialog, int i2) {
-                                            this.f$0.m12294lambda$createView$10$orgtelegramuiThemeActivity(set, alertDialog, i2);
+                                            m12294lambda$createView$10$orgtelegramuiThemeActivity(set, alertDialog, i2);
                                         }
                                     }).setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
                                     return;
@@ -1470,7 +1454,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                                 showDialog(new TimePickerDialog(getParentActivity(), new TimePickerDialog.OnTimeSetListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda3
                                                     @Override // android.app.TimePickerDialog.OnTimeSetListener
                                                     public final void onTimeSet(TimePicker timePicker, int i2, int i3) {
-                                                        this.f$0.m12296lambda$createView$12$orgtelegramuiThemeActivity(position, cell, timePicker, i2, i3);
+                                                        m12296lambda$createView$12$orgtelegramuiThemeActivity(position, cell, timePicker, i2, i3);
                                                     }
                                                 }, currentHour, currentMinute, true));
                                                 return;
@@ -1523,7 +1507,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                                 builder.setItems(new CharSequence[]{LocaleController.getString(Profile.DEFAULT_PROFILE_NAME, R.string.Default), LocaleController.getString("SortFirstName", R.string.SortFirstName), LocaleController.getString("SortLastName", R.string.SortLastName)}, new DialogInterface.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda2
                                     @Override // android.content.DialogInterface.OnClickListener
                                     public final void onClick(DialogInterface dialogInterface, int i2) {
-                                        this.f$0.m12295lambda$createView$11$orgtelegramuiThemeActivity(position, dialogInterface, i2);
+                                        m12295lambda$createView$11$orgtelegramuiThemeActivity(position, dialogInterface, i2);
                                     }
                                 });
                                 builder.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
@@ -1547,7 +1531,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         cell2.setOnClickListener(new View.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda22
                             @Override // android.view.View.OnClickListener
                             public final void onClick(View view2) {
-                                this.f$0.m12303lambda$createView$5$orgtelegramuiThemeActivity(dialogRef, view2);
+                                m12303lambda$createView$5$orgtelegramuiThemeActivity(dialogRef, view2);
                             }
                         });
                         RadioColorCell cell3 = new RadioColorCell(getParentActivity());
@@ -1559,7 +1543,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         cell3.setOnClickListener(new View.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda23
                             @Override // android.view.View.OnClickListener
                             public final void onClick(View view2) {
-                                this.f$0.m12305lambda$createView$7$orgtelegramuiThemeActivity(dialogRef, view2);
+                                m12305lambda$createView$7$orgtelegramuiThemeActivity(dialogRef, view2);
                             }
                         });
                         Dialog dialog = new AlertDialog.Builder(getParentActivity()).setTitle(LocaleController.getString(R.string.MicrophoneForVoiceMessages)).setView(linearLayout).setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null).create();
@@ -1588,7 +1572,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                         cell4.setOnClickListener(new View.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda21
                             @Override // android.view.View.OnClickListener
                             public final void onClick(View view2) {
-                                this.f$0.m12302lambda$createView$4$orgtelegramuiThemeActivity(index, dialogRef2, view2);
+                                m12302lambda$createView$4$orgtelegramuiThemeActivity(index, dialogRef2, view2);
                             }
                         });
                     }
@@ -1615,7 +1599,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     cell5.setOnClickListener(new View.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda20
                         @Override // android.view.View.OnClickListener
                         public final void onClick(View view2) {
-                            this.f$0.m12301lambda$createView$3$orgtelegramuiThemeActivity(index2, dialogRef3, view2);
+                            m12301lambda$createView$3$orgtelegramuiThemeActivity(index2, dialogRef3, view2);
                         }
                     });
                 }
@@ -1685,7 +1669,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         PermissionRequest.ensurePermission(R.raw.permission_request_microphone, R.string.PermissionNoBluetoothWithHint, "android.permission.BLUETOOTH_CONNECT", new Utilities.Callback() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda11
             @Override // org.telegram.messenger.Utilities.Callback
             public final void run(Object obj) {
-                this.f$0.m12304lambda$createView$6$orgtelegramuiThemeActivity(dialogRef, (Boolean) obj);
+                m12304lambda$createView$6$orgtelegramuiThemeActivity(dialogRef, (Boolean) obj);
             }
         });
         SharedConfig.recordViaSco = true;
@@ -1725,7 +1709,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         verifyAge(getContext(), this.currentAccount, new Utilities.Callback() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda14
             @Override // org.telegram.messenger.Utilities.Callback
             public final void run(Object obj) {
-                this.f$0.m12307lambda$createView$9$orgtelegramuiThemeActivity(set, (Boolean) obj);
+                m12307lambda$createView$9$orgtelegramuiThemeActivity(set, (Boolean) obj);
             }
         }, getResourceProvider());
     }
@@ -1772,7 +1756,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         this.listView.highlightRow(new RecyclerListView.IntReturnCallback() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda7
             @Override // org.telegram.ui.Components.RecyclerListView.IntReturnCallback
             public final int run() {
-                return this.f$0.m12298lambda$createView$14$orgtelegramuiThemeActivity();
+                return m12298lambda$createView$14$orgtelegramuiThemeActivity();
             }
         });
     }
@@ -1807,7 +1791,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         builder.setPositiveButton(LocaleController.getString("CreateTheme", R.string.CreateTheme), new AlertDialog.OnButtonClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda19
             @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
             public final void onClick(AlertDialog alertDialog, int i) {
-                this.f$0.m12293lambda$createNewTheme$16$orgtelegramuiThemeActivity(alertDialog, i);
+                m12293lambda$createNewTheme$16$orgtelegramuiThemeActivity(alertDialog, i);
             }
         });
         showDialog(builder.create());
@@ -1862,6 +1846,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             textView2.setText(AndroidUtilities.replaceTags(LocaleController.getString("AgeVerificationText" + country)));
             textView2.setGravity(17);
             linearLayout.addView(textView2, LayoutHelper.createLinear(-1, -2, 7, 24, 0, 24, 0));
+            final BottomSheet[] sheet = new BottomSheet[1];
             final ButtonWithCounterView button = new ButtonWithCounterView(context, resourcesProvider);
             button.setText(LocaleController.getString(R.string.AgeVerificationButton), false);
             button.setOnClickListener(new View.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda17
@@ -1871,7 +1856,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 }
             });
             linearLayout.addView(button, LayoutHelper.createLinear(-1, 48, 7, 2, 29, 2, 14));
-            final BottomSheet[] sheet = {builder.show()};
+            sheet[0] = builder.show();
             sheet[0].fixNavigationBar();
             return;
         }
@@ -1933,12 +1918,12 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         webViewSheet.requestWebView(lastFragment, props);
         webViewSheet.show();
         button.setLoading(false);
-        sheet[0].m11936lambda$new$0$orgtelegramuiStoriesrecorderGallerySheet();
+        sheet[0].dismiss();
     }
 
     static /* synthetic */ void lambda$verifyAge$17(int minAge, BotWebViewSheet webViewSheet, Utilities.Callback done, Boolean localPassed, Double age, String gender, Double genderProbability) {
         boolean passed = age != null ? age.doubleValue() >= ((double) minAge) : localPassed.booleanValue();
-        webViewSheet.m12740lambda$openOptions$42$orgtelegramuibotsBotWebViewSheet();
+        webViewSheet.dismiss();
         done.run(Boolean.valueOf(passed));
         BaseFragment lastFragment2 = LaunchActivity.getSafeLastFragment();
         if (passed && lastFragment2 != null) {
@@ -1989,7 +1974,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     builder.setPositiveButton(LocaleController.getString("ConnectingToProxyEnable", R.string.ConnectingToProxyEnable), new AlertDialog.OnButtonClickListener() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda15
                         @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
                         public final void onClick(AlertDialog alertDialog, int i) {
-                            this.f$0.m12310lambda$updateSunTime$21$orgtelegramuiThemeActivity(alertDialog, i);
+                            m12310lambda$updateSunTime$21$orgtelegramuiThemeActivity(alertDialog, i);
                         }
                     });
                     builder.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
@@ -2029,7 +2014,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         Utilities.globalQueue.postRunnable(new Runnable() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda16
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m12312lambda$updateSunTime$23$orgtelegramuiThemeActivity();
+                m12312lambda$updateSunTime$23$orgtelegramuiThemeActivity();
             }
         });
         RecyclerListView.Holder holder = (RecyclerListView.Holder) this.listView.findViewHolderForAdapterPosition(this.scheduleLocationInfoRow);
@@ -2070,7 +2055,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         AndroidUtilities.runOnUIThread(new Runnable() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda12
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m12311lambda$updateSunTime$22$orgtelegramuiThemeActivity(nameFinal);
+                m12311lambda$updateSunTime$22$orgtelegramuiThemeActivity(nameFinal);
             }
         });
     }
@@ -2401,7 +2386,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 builder.setItems(items, icons, new DialogInterface.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$ListAdapter$$ExternalSyntheticLambda5
                     @Override // android.content.DialogInterface.OnClickListener
                     public final void onClick(DialogInterface dialogInterface, int i) {
-                        this.f$0.m12319x1cb31ddc(themeInfo, dialogInterface, i);
+                        m12319x1cb31ddc(themeInfo, dialogInterface, i);
                     }
                 });
                 AlertDialog alertDialog = builder.create();
@@ -2412,22 +2397,83 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             }
         }
 
-        /* JADX WARN: Removed duplicated region for block: B:48:0x0101  */
-        /* JADX WARN: Removed duplicated region for block: B:49:0x0114  */
-        /* JADX WARN: Removed duplicated region for block: B:53:0x012a A[RETURN] */
-        /* JADX WARN: Removed duplicated region for block: B:54:0x012b A[Catch: Exception -> 0x018d, TRY_LEAVE, TryCatch #2 {Exception -> 0x018d, blocks: (B:51:0x0124, B:54:0x012b, B:62:0x0179, B:61:0x0172, B:60:0x0169, B:57:0x0140), top: B:86:0x0124, inners: #4 }] */
-        /* JADX WARN: Unsupported multi-entry loop pattern (BACK_EDGE: B:32:0x00d1 -> B:81:0x00f7). Please report as a decompilation issue!!! */
         /* JADX INFO: renamed from: lambda$showOptionsForTheme$1$org-telegram-ui-ThemeActivity$ListAdapter, reason: not valid java name */
-        /*
-            Code decompiled incorrectly, please refer to instructions dump.
-            To view partially-correct add '--show-bad-code' argument
-        */
-        /* synthetic */ void m12319x1cb31ddc(final org.telegram.ui.ActionBar.Theme.ThemeInfo r10, android.content.DialogInterface r11, int r12) {
-            /*
-                Method dump skipped, instruction units count: 551
-                To view this dump add '--comments-level debug' option
-            */
-            throw new UnsupportedOperationException("Method not decompiled: org.telegram.ui.ThemeActivity.ListAdapter.m12319x1cb31ddc(org.telegram.ui.ActionBar.Theme$ThemeInfo, android.content.DialogInterface, int):void");
+        void m12319x1cb31ddc(final Theme.ThemeInfo themeInfo, DialogInterface dialogInterface, int which) {
+            if (ThemeActivity.this.getParentActivity() == null) {
+                return;
+            }
+            if (which == 0) {
+                if (themeInfo.info == null) {
+                    MessagesController.getInstance(themeInfo.account).saveThemeToServer(themeInfo, themeInfo.getAccent(false));
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needShareTheme, themeInfo, themeInfo.getAccent(false));
+                    return;
+                } else {
+                    String link = "https://" + ThemeActivity.this.getMessagesController().linkPrefix + "/addtheme/" + themeInfo.info.slug;
+                    ThemeActivity.this.showDialog(new ShareAlert(ThemeActivity.this.getParentActivity(), null, link, false, link, false));
+                    return;
+                }
+            }
+            if (which == 1) {
+                if (themeInfo.pathToFile == null && themeInfo.assetName == null) {
+                    return;
+                }
+                String shareName = themeInfo.name;
+                if (!shareName.endsWith(".attheme")) {
+                    shareName = shareName + ".attheme";
+                }
+                java.io.File finalFile = new java.io.File(org.telegram.messenger.FileLoader.getDirectory(4), org.telegram.messenger.FileLoader.fixFileName(shareName));
+                java.io.File currentFile = themeInfo.assetName != null ? Theme.getAssetFile(themeInfo.assetName) : new java.io.File(themeInfo.pathToFile);
+                if (!AndroidUtilities.copyFile(currentFile, finalFile)) {
+                    return;
+                }
+                Intent intent = new Intent("android.intent.action.SEND");
+                intent.setType("text/xml");
+                if (Build.VERSION.SDK_INT >= 24) {
+                    try {
+                        intent.putExtra("android.intent.extra.STREAM", androidx.core.content.FileProvider.getUriForFile(ThemeActivity.this.getParentActivity(), ApplicationLoader.getApplicationId() + ".provider", finalFile));
+                        intent.setFlags(1);
+                    } catch (Exception e) {
+                        intent.putExtra("android.intent.extra.STREAM", android.net.Uri.fromFile(finalFile));
+                    }
+                } else {
+                    intent.putExtra("android.intent.extra.STREAM", android.net.Uri.fromFile(finalFile));
+                }
+                try {
+                    ThemeActivity.this.getParentActivity().startActivityForResult(Intent.createChooser(intent, LocaleController.getString("ShareFile", R.string.ShareFile)), 500);
+                    return;
+                } catch (Exception e2) {
+                    return;
+                }
+            }
+            if (which == 2) {
+                if (ThemeActivity.this.parentLayout != null) {
+                    Theme.applyTheme(themeInfo);
+                    ThemeActivity.this.parentLayout.rebuildAllFragmentViews(true, true);
+                    new org.telegram.ui.Components.ThemeEditorView().show(ThemeActivity.this.getParentActivity(), themeInfo);
+                    return;
+                }
+                return;
+            }
+            if (which == 3) {
+                ThemeActivity.this.presentFragment(new ThemeSetUrlActivity(themeInfo, null, false));
+                return;
+            }
+            AlertDialog.Builder builder1 = new AlertDialog.Builder(ThemeActivity.this.getParentActivity());
+            builder1.setTitle(LocaleController.getString("DeleteThemeTitle", R.string.DeleteThemeTitle));
+            builder1.setMessage(LocaleController.getString("DeleteThemeAlert", R.string.DeleteThemeAlert));
+            builder1.setPositiveButton(LocaleController.getString("Delete", R.string.Delete), new AlertDialog.OnButtonClickListener() {
+                @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
+                public void onClick(AlertDialog alertDialog, int i) {
+                    m12318x3771af1b(themeInfo, alertDialog, i);
+                }
+            });
+            builder1.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
+            AlertDialog alertDialog2 = builder1.create();
+            ThemeActivity.this.showDialog(alertDialog2);
+            TextView button = (TextView) alertDialog2.getButton(-1);
+            if (button != null) {
+                button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+            }
         }
 
         /* JADX INFO: renamed from: lambda$showOptionsForTheme$0$org-telegram-ui-ThemeActivity$ListAdapter, reason: not valid java name */
@@ -2436,7 +2482,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             if (Theme.deleteTheme(themeInfo)) {
                 ThemeActivity.this.parentLayout.rebuildAllFragmentViews(true, true);
             }
-            NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.themeListUpdated, new Object[0]);
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.themeListUpdated, new Object[0]);
         }
 
         @Override // androidx.recyclerview.widget.RecyclerView.Adapter
@@ -2535,13 +2581,13 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     accentsListView.setOnItemClickListener(new RecyclerListView.OnItemClickListener() { // from class: org.telegram.ui.ThemeActivity$ListAdapter$$ExternalSyntheticLambda0
                         @Override // org.telegram.ui.Components.RecyclerListView.OnItemClickListener
                         public final void onItemClick(View view2, int i2) {
-                            this.f$0.m12314x25c35c2(accentsAdapter, accentsListView, view2, i2);
+                            m12314x25c35c2(accentsAdapter, accentsListView, view2, i2);
                         }
                     });
                     accentsListView.setOnItemLongClickListener(new RecyclerListView.OnItemLongClickListener() { // from class: org.telegram.ui.ThemeActivity$ListAdapter$$ExternalSyntheticLambda1
                         @Override // org.telegram.ui.Components.RecyclerListView.OnItemLongClickListener
                         public final boolean onItemClick(View view2, int i2) {
-                            return this.f$0.m12317xb2208205(accentsAdapter, view2, i2);
+                            return m12317xb2208205(accentsAdapter, view2, i2);
                         }
                     });
                     accentsListView.setLayoutParams(new RecyclerView.LayoutParams(-1, AndroidUtilities.dp(62.0f)));
@@ -2599,7 +2645,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                     Theme.PatternsLoader.createLoader(false);
                 }
                 if (currentTheme.currentAccentId != accent.id) {
-                    NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needSetDayNightTheme, currentTheme, Boolean.valueOf(ThemeActivity.this.currentType == 1), null, Integer.valueOf(accent.id));
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentTheme, Boolean.valueOf(ThemeActivity.this.currentType == 1), null, Integer.valueOf(accent.id));
                     EmojiThemes.saveCustomTheme(currentTheme, accent.id);
                     Theme.turnOffAutoNight(ThemeActivity.this);
                 } else {
@@ -2642,7 +2688,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
                 builder.setItems(items, icons, new DialogInterface.OnClickListener() { // from class: org.telegram.ui.ThemeActivity$ListAdapter$$ExternalSyntheticLambda2
                     @Override // android.content.DialogInterface.OnClickListener
                     public final void onClick(DialogInterface dialogInterface, int i) {
-                        this.f$0.m12316xccdf1344(accent, accentsAdapter, dialogInterface, i);
+                        m12316xccdf1344(accent, accentsAdapter, dialogInterface, i);
                     }
                 });
                 AlertDialog alertDialog = builder.create();
@@ -2665,7 +2711,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             if (which == 1) {
                 if (accent.info == null) {
                     ThemeActivity.this.getMessagesController().saveThemeToServer(accent.parentTheme, accent);
-                    NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needShareTheme, accent.parentTheme, accent);
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needShareTheme, accent.parentTheme, accent);
                     return;
                 } else {
                     String link = "https://" + ThemeActivity.this.getMessagesController().linkPrefix + "/addtheme/" + accent.info.slug;
@@ -2686,7 +2732,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
             builder1.setPositiveButton(LocaleController.getString("Delete", R.string.Delete), new AlertDialog.OnButtonClickListener() { // from class: org.telegram.ui.ThemeActivity$ListAdapter$$ExternalSyntheticLambda3
                 @Override // org.telegram.ui.ActionBar.AlertDialog.OnButtonClickListener
                 public final void onClick(AlertDialog alertDialog, int i) {
-                    this.f$0.m12315xe79da483(accentsAdapter, accent, alertDialog, i);
+                    m12315xe79da483(accentsAdapter, accent, alertDialog, i);
                 }
             });
             builder1.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
@@ -2702,7 +2748,7 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         /* synthetic */ void m12315xe79da483(ThemeAccentsListAdapter accentsAdapter, Theme.ThemeAccent accent, AlertDialog dialogInterface, int i) {
             if (Theme.deleteThemeAccent(accentsAdapter.currentTheme, accent, true)) {
                 Theme.refreshThemeColors();
-                NotificationCenter.getGlobalInstance().m3761x4eaf4c96(NotificationCenter.needSetDayNightTheme, Theme.getActiveTheme(), Boolean.valueOf(ThemeActivity.this.currentType == 1), null, -1);
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, Theme.getActiveTheme(), Boolean.valueOf(ThemeActivity.this.currentType == 1), null, -1);
             }
         }
 
@@ -3165,13 +3211,9 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         themeDescriptions.addAll(SimpleThemeDescription.createThemeDescriptions(new ThemeDescription.ThemeDescriptionDelegate() { // from class: org.telegram.ui.ThemeActivity$$ExternalSyntheticLambda13
             @Override // org.telegram.ui.ActionBar.ThemeDescription.ThemeDescriptionDelegate
             public final void didSetColor() {
-                this.f$0.m12309lambda$getThemeDescriptions$24$orgtelegramuiThemeActivity();
+                m12309lambda$getThemeDescriptions$24$orgtelegramuiThemeActivity();
             }
 
-            @Override // org.telegram.ui.ActionBar.ThemeDescription.ThemeDescriptionDelegate
-            public /* synthetic */ void onAnimationProgress(float f) {
-                ThemeDescription.ThemeDescriptionDelegate.CC.$default$onAnimationProgress(this, f);
-            }
         }, Theme.key_windowBackgroundWhiteHintText, Theme.key_windowBackgroundWhiteBlackText, Theme.key_windowBackgroundWhiteValueText));
         return themeDescriptions;
     }
