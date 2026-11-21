@@ -248,6 +248,27 @@ public class PremiumTierCell extends ViewGroup {
         this.tier = tier;
         this.hasDivider = hasDivider;
 
+        if (tier.myketPlan != null) {
+            // Fixed Gitbin plan: title, total price on the right, old price + discount when there is one.
+            final org.telegram.messenger.MyketBillingController.PremiumPlan plan = tier.myketPlan;
+            isDrawingGradient = false;
+            titleView.setText(plan.title());
+            pricePerMonthView.setText(plan.priceText());
+            pricePerYearView.setVisibility(VISIBLE);
+            pricePerYearView.setText(plan.perMonthText());
+            if (plan.hasDiscount()) {
+                discountView.setText(plan.discountText());
+                discountView.setVisibility(VISIBLE);
+                pricePerYearStrikeView.setText(plan.oldPriceText());
+                pricePerYearStrikeView.setVisibility(VISIBLE);
+            } else {
+                discountView.setVisibility(GONE);
+                pricePerYearStrikeView.setVisibility(GONE);
+            }
+            requestLayout();
+            return;
+        }
+
         switch (tier.getMonths()) {
             default:
                 titleView.setText(
