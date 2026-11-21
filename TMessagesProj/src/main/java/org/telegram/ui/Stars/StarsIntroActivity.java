@@ -185,7 +185,6 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
     private ButtonWithCounterView buyButton;
     private LinearLayout twoButtonsLayout;
     private ButtonWithCounterView topupButton;
-    private ButtonWithCounterView giftButton;
 
     public StarsIntroActivity() {
         setWhiteBackground(true);
@@ -395,19 +394,6 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         twoButtonsLayout.addView(withdrawButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER, 1, 0, 0, 0, 0));
 
         balanceLayout.addView(buttonsLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER, 20, 17, 20, 0));
-
-        giftButton = new ButtonWithCounterView(getContext(), false, resourceProvider);
-        giftButton.setRound();
-        SpannableStringBuilder sb2 = new SpannableStringBuilder();
-        sb2.append("G  ");
-        sb2.setSpan(new ColoredImageSpan(R.drawable.menu_stars_gift), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        sb2.append(LocaleController.getString(R.string.TelegramStarsGift));
-        giftButton.setText(sb2, false);
-        giftButton.setOnClickListener(v -> {
-            StarsController.getInstance(currentAccount).getGiftOptions();
-            UserSelectorBottomSheet.open(UserSelectorBottomSheet.TYPE_STARS, 0, BirthdayController.getInstance(currentAccount).getState());
-        });
-        balanceLayout.addView(giftButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER, 20, 8, 20, 0));
 
         updateBalance();
 
@@ -704,10 +690,6 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
 
         items.add(UItem.asFullyCustom(getHeader(getContext())));
         items.add(UItem.asCustom(balanceLayout));
-
-        if (giftButton != null) {
-            giftButton.setVisibility(getMessagesController().starsGiftsEnabled ? View.VISIBLE : View.GONE);
-        }
 
         items.add(UItem.asShadow(null));
 
