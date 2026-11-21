@@ -7,20 +7,19 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Locale;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import ir.myket.billingclient.IabHelper;
-import ir.myket.billingclient.util.IabResult;
 import ir.myket.billingclient.util.Purchase;
 
 /**
- * Myket in-app billing for Gitbin Stars.
- * Flow: launchPurchaseFlow -> send receipt to our server -> server verifies & credits -> consume.
- * A purchase is consumed ONLY after the server accepted it. Unconsumed purchases are
- * re-sent to the server on the next buy (recoverPending), so the server must be idempotent
+ * Myket in-app billing for Gitbin Stars and Gitbin Premium.
+ * Flow: launchPurchaseFlow -> send receipt to our server -> server verifies and credits
+ * -> consume. A purchase is consumed ONLY after the server accepted it. Unconsumed
+ * purchases are re-sent on the next buy (recoverPending), so the server is idempotent
  * per purchaseToken.
  */
 public class MyketBillingController {
@@ -28,9 +27,75 @@ public class MyketBillingController {
     private static final String TAG = "MyketBilling";
     private static final int USER_CANCELLED = -1005;
 
-    // SKU -> stars / price in Rial (price is informational, server must use its own table)
+    // Stars: SKU stars_<n> -> n stars. Price in Rial (informational, the server uses its own table).
     private static final long[] STARS = {10, 50, 100, 500, 1000};
     private static final long[] PRICE_IRR = {50000, 250000, 500000, 2500000, 5000000};
+
+    /** One Premium plan sold through Myket (consumable product, the server adds the months). */
+    public static class PremiumPlan {
+        public final String sku;
+        public final int months;
+        public final long priceToman;
+        public final long oldPriceToman; // 0 = no discount
+
+        PremiumPlan(String sku, int months, long priceToman, long oldPriceToman) {
+            this.sku = sku;
+            this.months = months;
+            this.priceToman = priceToman;
+            this.oldPriceToman = oldPriceToman;
+        }
+
+        public boolean hasDiscount() {
+            return oldPriceToman > priceToman;
+        }
+
+        public int discountPercent() {
+            if (!hasDiscount()) return 0;
+            return (int) Math.round((oldPriceToman - priceToman) * 100.0 / oldPriceToman);
+        }
+
+        public String title() {
+            if (isFa()) {
+                switch (months) {
+                    case 1: return "پرمیوم ۱ ماهه";
+                    case 3: return "پرمیوم ۳ ماهه";
+                    case 6: return "پرمیوم ۶ ماهه";
+                    case 12: return "پرمیوم ۱ ساله";
+                    default: return "پرمیوم " + faDigits(String.valueOf(months)) + " ماهه";
+                }
+            }
+            return months == 12 ? "Premium 1 year" : "Premium " + months + (months == 1 ? " month" : " months");
+        }
+
+        public String priceText() {
+            return money(priceToman);
+        }
+
+        public String oldPriceText() {
+            return money(oldPriceToman);
+        }
+
+        public String perMonthText() {
+            final long perMonth = Math.round(priceToman / (double) months);
+            return isFa() ? "ماهانه " + money(perMonth) : money(perMonth) + " / month";
+        }
+
+        public String discountText() {
+            final int p = discountPercent();
+            return isFa() ? faDigits(String.valueOf(p)) + "٪ تخفیف" : p + "% off";
+        }
+
+        public String buttonText() {
+            return isFa() ? "خرید " + title() + " · " + priceText() : "Buy " + title() + " · " + priceText();
+        }
+    }
+
+    public static final PremiumPlan[] PREMIUM_PLANS = {
+            new PremiumPlan("premium_1m", 1, 50000, 0),
+            new PremiumPlan("premium_3m", 3, 75000, 0),
+            new PremiumPlan("premium_6m", 6, 130000, 150000),
+            new PremiumPlan("premium_12m", 12, 275000, 300000),
+    };
 
     private static MyketBillingController instance;
 
@@ -47,6 +112,34 @@ public class MyketBillingController {
     private final ArrayList<Utilities.Callback2<Boolean, String>> setupWaiters = new ArrayList<>();
     private final Set<String> processingTokens = new HashSet<>();
 
+    // ---------- helpers ----------
+
+    private static boolean isFa() {
+        try {
+            LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
+            if (info != null && info.shortName != null) {
+                return info.shortName.toLowerCase().startsWith("fa");
+            }
+            return "fa".equals(LocaleController.getInstance().getCurrentLocale().getLanguage());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String faDigits(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); ++i) {
+            char c = s.charAt(i);
+            sb.append(c >= '0' && c <= '9' ? (char) ('۰' + (c - '0')) : c);
+        }
+        return sb.toString();
+    }
+
+    private static String money(long toman) {
+        final String n = String.format(Locale.US, "%,d", toman);
+        return isFa() ? faDigits(n) + " تومان" : n + " Toman";
+    }
+
     public static String skuForStars(long stars) {
         return "stars_" + stars;
     }
@@ -58,18 +151,28 @@ public class MyketBillingController {
         return 0;
     }
 
-    private static List<String> allSkus() {
-        ArrayList<String> list = new ArrayList<>();
-        for (long s : STARS) list.add(skuForStars(s));
-        return list;
-    }
-
     private static long starsForSku(String sku) {
         for (long s : STARS) {
             if (skuForStars(s).equals(sku)) return s;
         }
         return 0;
     }
+
+    private static PremiumPlan planForSku(String sku) {
+        for (PremiumPlan p : PREMIUM_PLANS) {
+            if (p.sku.equals(sku)) return p;
+        }
+        return null;
+    }
+
+    private static List<String> allSkus() {
+        ArrayList<String> list = new ArrayList<>();
+        for (long s : STARS) list.add(skuForStars(s));
+        for (PremiumPlan p : PREMIUM_PLANS) list.add(p.sku);
+        return list;
+    }
+
+    // ---------- setup ----------
 
     private void ensureSetup(Utilities.Callback2<Boolean, String> callback) {
         if (setupDone && helper != null) {
@@ -113,13 +216,27 @@ public class MyketBillingController {
         }
     }
 
-    /** Buy a Stars package. whenDone is always called on the UI thread. */
+    // ---------- public API ----------
+
+    /** Buy a Stars package. whenDone is always called on the UI thread; (false, null) = user cancelled. */
     public void buyStars(Activity activity, AccountInstance acc, long stars, Utilities.Callback2<Boolean, String> whenDone) {
-        final String sku = skuForStars(stars);
         if (priceForStars(stars) == 0) {
             whenDone.run(false, "UNKNOWN_PACKAGE");
             return;
         }
+        buySku(activity, acc, skuForStars(stars), whenDone);
+    }
+
+    /** Buy a Premium plan. whenDone is always called on the UI thread; (false, null) = user cancelled. */
+    public void buyPremium(Activity activity, AccountInstance acc, PremiumPlan plan, Utilities.Callback2<Boolean, String> whenDone) {
+        if (plan == null || planForSku(plan.sku) == null) {
+            whenDone.run(false, "UNKNOWN_PACKAGE");
+            return;
+        }
+        buySku(activity, acc, plan.sku, whenDone);
+    }
+
+    private void buySku(Activity activity, AccountInstance acc, String sku, Utilities.Callback2<Boolean, String> whenDone) {
         if (!acc.getUserConfig().isClientActivated()) {
             whenDone.run(false, "NOT_LOGGED_IN");
             return;
@@ -193,7 +310,8 @@ public class MyketBillingController {
     private void deliver(AccountInstance acc, Purchase purchase, Utilities.Callback2<Boolean, String> whenDone) {
         final String token = purchase.getToken();
         final long stars = starsForSku(purchase.getSku());
-        if (stars == 0) {
+        final PremiumPlan plan = planForSku(purchase.getSku());
+        if (stars == 0 && plan == null) {
             whenDone.run(false, "UNKNOWN_SKU");
             return;
         }
@@ -226,11 +344,15 @@ public class MyketBillingController {
             whenDone.run(false, "RECEIPT_ERROR");
             return;
         }
-        final TLRPC.TL_inputStorePaymentStarsTopup purpose = new TLRPC.TL_inputStorePaymentStarsTopup();
-        purpose.stars = stars;
-        purpose.currency = "IRR";
-        purpose.amount = priceForStars(stars);
-        req.purpose = purpose;
+        if (plan != null) {
+            req.purpose = new TLRPC.TL_inputStorePaymentPremiumSubscription();
+        } else {
+            final TLRPC.TL_inputStorePaymentStarsTopup purpose = new TLRPC.TL_inputStorePaymentStarsTopup();
+            purpose.stars = stars;
+            purpose.currency = "IRR";
+            purpose.amount = priceForStars(stars);
+            req.purpose = purpose;
+        }
 
         acc.getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             if (response instanceof TLRPC.Updates) {
@@ -242,7 +364,7 @@ public class MyketBillingController {
                         if (!r.isSuccess()) {
                             FileLog.d(TAG + ": consume failed: " + r.getMessage());
                         }
-                        // Stars are already credited by the server, so this is a success for the user.
+                        // Already credited by the server, so this is a success for the user.
                         whenDone.run(true, null);
                     });
                 } catch (Exception e) {
