@@ -2019,14 +2019,17 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
             subscriptionTiers.clear();
             selectedTierIndex = -1;
             currentSubscriptionTier = null;
-            for (org.telegram.messenger.MyketBillingController.PremiumPlan plan : org.telegram.messenger.MyketBillingController.PREMIUM_PLANS) {
-                TLRPC.TL_premiumSubscriptionOption option = new TLRPC.TL_premiumSubscriptionOption();
-                option.months = plan.months;
-                option.currency = "IRR";
-                option.amount = plan.priceToman * 10L;
-                subscriptionTiers.add(new SubscriptionTier(option, plan));
-                if (plan.months == 12) {
-                    selectedTierIndex = subscriptionTiers.size() - 1;
+            // Users who already have Premium do not see the plan list at all.
+            if (!getUserConfig().isPremium()) {
+                for (org.telegram.messenger.MyketBillingController.PremiumPlan plan : org.telegram.messenger.MyketBillingController.PREMIUM_PLANS) {
+                    TLRPC.TL_premiumSubscriptionOption option = new TLRPC.TL_premiumSubscriptionOption();
+                    option.months = plan.months;
+                    option.currency = "IRR";
+                    option.amount = plan.priceToman * 10L;
+                    subscriptionTiers.add(new SubscriptionTier(option, plan));
+                    if (plan.months == 12) {
+                        selectedTierIndex = subscriptionTiers.size() - 1;
+                    }
                 }
             }
             if (selectedTierIndex == -1) {
@@ -2034,6 +2037,7 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
             }
             updateButtonText(false);
             tierListView.getAdapter().notifyDataSetChanged();
+            updateText();
         }
 
         @SuppressLint("NotifyDataSetChanged")
