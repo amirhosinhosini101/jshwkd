@@ -1133,6 +1133,24 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
             return;
         }
 
+        if (tier != null && tier.myketPlan != null) {
+            buyMyketPremium(fragment, account, tier.myketPlan, forcePremium);
+            return;
+        }
+        if (tier == null && !(fragment instanceof PremiumPreviewFragment)) {
+            // Generic "get Premium" entry points: let the user choose a plan first.
+            final PremiumPreviewFragment previewFragment = new PremiumPreviewFragment(null);
+            if (fragment != null) {
+                fragment.presentFragment(previewFragment);
+            } else {
+                final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+                if (lastFragment != null) {
+                    lastFragment.presentFragment(previewFragment);
+                }
+            }
+            return;
+        }
+
         if (tier == null) {
             forcePremium = true;
             TLRPC.TL_help_premiumPromo promo = MediaDataController.getInstance(account).getPremiumPromo();
@@ -1284,9 +1302,42 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
         }));
     }
 
+    private static void buyMyketPremium(BaseFragment fragment, int account, org.telegram.messenger.MyketBillingController.PremiumPlan plan, boolean forcePremium) {
+        final Activity activity = fragment != null ? fragment.getParentActivity() : LaunchActivity.instance;
+        if (activity == null) {
+            return;
+        }
+        org.telegram.messenger.MyketBillingController.getInstance().buyPremium(activity, org.telegram.messenger.AccountInstance.getInstance(account), plan, (success, error) -> {
+            final BaseFragment lastFragment = fragment != null ? fragment : LaunchActivity.getSafeLastFragment();
+            if (!success) {
+                if (error != null && lastFragment != null) {
+                    BulletinFactory.of(lastFragment).createSimpleBulletin(R.raw.error, LocaleController.formatString(R.string.UnknownErrorCode, error)).show();
+                }
+                return;
+            }
+            MessagesController.getInstance(account).loadFullUser(UserConfig.getInstance(account).getCurrentUser(), 0, true);
+            if (fragment instanceof PremiumPreviewFragment) {
+                PremiumPreviewFragment premiumPreviewFragment = (PremiumPreviewFragment) fragment;
+                premiumPreviewFragment.setForcePremium();
+                premiumPreviewFragment.getMediaDataController().loadPremiumPromo(false);
+                premiumPreviewFragment.listView.smoothScrollToPosition(0);
+            } else if (lastFragment != null) {
+                PremiumPreviewFragment previewFragment = new PremiumPreviewFragment(null);
+                previewFragment.setForcePremium();
+                lastFragment.presentFragment(previewFragment);
+            }
+            if (lastFragment != null && lastFragment.getParentActivity() instanceof LaunchActivity) {
+                ((LaunchActivity) lastFragment.getParentActivity()).getFireworksOverlay().start();
+            }
+        });
+    }
+
     public static String getPremiumButtonText(int currentAccount, SubscriptionTier tier) {
         if (BuildVars.IS_BILLING_UNAVAILABLE) {
             return getString(R.string.SubscribeToPremiumNotAvailable);
+        }
+        if (tier != null && tier.myketPlan != null) {
+            return tier.myketPlan.buttonText();
         }
 
         int stringResId = R.string.SubscribeToPremium;
@@ -1968,6 +2019,28 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
             subscriptionTiers.clear();
             selectedTierIndex = -1;
             currentSubscriptionTier = null;
+            for (org.telegram.messenger.MyketBillingController.PremiumPlan plan : org.telegram.messenger.MyketBillingController.PREMIUM_PLANS) {
+                TLRPC.TL_premiumSubscriptionOption option = new TLRPC.TL_premiumSubscriptionOption();
+                option.months = plan.months;
+                option.currency = "IRR";
+                option.amount = plan.priceToman * 10L;
+                subscriptionTiers.add(new SubscriptionTier(option, plan));
+                if (plan.months == 12) {
+                    selectedTierIndex = subscriptionTiers.size() - 1;
+                }
+            }
+            if (selectedTierIndex == -1) {
+                selectedTierIndex = 0;
+            }
+            updateButtonText(false);
+            tierListView.getAdapter().notifyDataSetChanged();
+        }
+
+        @SuppressLint("NotifyDataSetChanged")
+        private void updatePremiumTiersLegacy() {
+            subscriptionTiers.clear();
+            selectedTierIndex = -1;
+            currentSubscriptionTier = null;
             long pricePerYearMax = 0;
             if (getMediaDataController().getPremiumPromo() != null) {
                 for (TLRPC.TL_premiumSubscriptionOption option : getMediaDataController().getPremiumPromo().period_options) {
@@ -2121,6 +2194,13 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
         }
         if (LocaleController.isRTL) {
             animated = false;
+        }
+        if (!subscriptionTiers.isEmpty() && selectedTierIndex >= 0 && selectedTierIndex < subscriptionTiers.size() && subscriptionTiers.get(selectedTierIndex).myketPlan != null) {
+            final SubscriptionTier myketTier = subscriptionTiers.get(selectedTierIndex);
+            premiumButtonView.setButton(myketTier.myketPlan.buttonText(), null, animated);
+            buttonContainerInternal.setOnClickListener(v -> buyPremium(this, myketTier, "settings", true, null));
+            premiumButtonView.setFlickerDisabled(false);
+            return;
         }
         if (BuildVars.IS_BILLING_UNAVAILABLE && selectedTierIndex < subscriptionTiers.size()) {
             premiumButtonView.setButton(getPremiumButtonText(currentAccount, subscriptionTiers.get(selectedTierIndex)), null, animated);
@@ -2368,6 +2448,14 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
 
         public SubscriptionTier(TLRPC.TL_premiumSubscriptionOption subscriptionOption) {
             this.subscriptionOption = subscriptionOption;
+        }
+
+        // Fixed Gitbin plan sold through Myket (null for server-provided tiers).
+        public org.telegram.messenger.MyketBillingController.PremiumPlan myketPlan;
+
+        public SubscriptionTier(TLRPC.TL_premiumSubscriptionOption subscriptionOption, org.telegram.messenger.MyketBillingController.PremiumPlan myketPlan) {
+            this.subscriptionOption = subscriptionOption;
+            this.myketPlan = myketPlan;
         }
 
         public ProductDetails getGooglePlayProductDetails() {
